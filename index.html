@@ -511,6 +511,12 @@ async function loadLastPicked(){
    Persisted like everything else; migrates the old single-venue format if present. */
 const FIELDS_KEY = 'sides:fields';
 const VENUE_KEY  = 'sides:venue';   // legacy single-venue key (for migration only)
+/* Built-in fields — seeded on a fresh device so they're always available.
+   El Rio is 11 v 11; add your other fields here (size 12). */
+const DEFAULT_FIELDS = [
+  { name: 'El Rio', address: '', size: 11 }
+  // e.g. { name: 'Patch Reef Park', address: '2000 W Yamato Rd, Boca Raton, FL', size: 12 },
+];
 async function saveFields(){
   const json = JSON.stringify({ fields, selectedFieldId });
   try{ if(window.storage && window.storage.set) await window.storage.set(FIELDS_KEY, json, false); }catch(e){}
@@ -536,7 +542,9 @@ async function loadFields(){
     const f = { id:uid(), name:legacy.field||'', address:legacy.address||'' };
     return { fields:[f], selectedFieldId:f.id };
   }
-  return { fields:[], selectedFieldId:null };
+  // nothing saved yet -> seed the built-in fields so they're there on any device
+  const seed = DEFAULT_FIELDS.map(f=>({ id:uid(), ...f }));
+  return { fields: seed, selectedFieldId: seed.length ? seed[0].id : null };
 }
 
 /* ---------------- state ---------------- */
