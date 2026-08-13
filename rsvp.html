@@ -33,6 +33,13 @@
   .status .st-sub{margin-top:6px;font-size:13px;color:var(--muted);}
   .demo-banner{background:rgba(242,177,56,.12);border:1px solid rgba(242,177,56,.4);color:var(--gold);
     border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:16px;line-height:1.4;}
+  .flock{display:none;flex-direction:column;gap:8px;margin-bottom:14px;padding:12px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
+  .flock.show{display:flex;}
+  .flock-h{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  .flock-h span{text-transform:none;letter-spacing:0;color:var(--muted-2);margin-left:6px;font-size:11px;}
+  .flock-row{display:flex;align-items:center;gap:10px;}
+  .flock-row label{width:38px;font-size:12px;font-weight:700;color:var(--chalk);}
+  .flock-row select{flex:1;background:var(--pitch);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:9px 11px;font-family:'Inter';font-size:14px;outline:none;}
   .mv{display:none;align-items:center;gap:10px;margin-bottom:16px;padding:11px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
   .mv.show{display:flex;}
   .mv .pin{font-size:16px;line-height:1;}
@@ -93,6 +100,7 @@
 
   <div id="demoBanner" class="demo-banner" style="display:none"></div>
   <div id="status" class="status"></div>
+  <div id="fieldLock" class="flock"></div>
   <div id="venue" class="mv"></div>
   <div id="body"></div>
   <button id="refreshBtn" class="refresh" style="display:none">↻ Refresh</button>
@@ -110,17 +118,6 @@
 const SUPABASE_URL = 'https://snzfdahttdyeouqsmqgl.supabase.co';        // from Settings > Data API
 const SUPABASE_ANON_KEY = 'sb_publishable_2vVk6QKUfQ2vgcqCTwCbVQ_5XmhE2Hh';   // publishable key
 const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
-
-/* ============================================================
-   FIELDS — fallback only. The RSVP page normally shows the exact
-   field you picked in SIDES (published to Supabase), so El Rio is
-   11 v 11 whenever you play there. These values are used only until
-   SIDES has published a field for the upcoming game.
-   ============================================================ */
-const FIELDS = {
-  W: { name: 'El Rio',  address: '', size: 11 },   // Wednesday 6 PM (fallback)
-  S: { name: '',        address: '', size: 12 }    // Saturday 8 AM (fallback)
-};
 function sbHeaders(extra){
   const h = { apikey: SUPABASE_ANON_KEY };
   // legacy anon JWT keys go in the Authorization header too; new publishable keys must not
@@ -217,9 +214,19 @@ function fmtStamp(iso){
 
 /* ---------- render ---------- */
 let SESSION=null, KEY='', INORDER=[], INSET=new Set(), GKS=new Set(), TIMES={}, FILTER='', SESSION_FIELD=null;
+let FIELDLIST=[];              // fields published from SIDES: [{name,address,size}]
+let DAYLOCK={W:null,S:null};   // field name locked for Wednesday / Saturday
+const CFG='__config__';
+
+function lockedField(){         // the field locked for the upcoming day (W or S)
+  const nm = DAYLOCK[SESSION.day[0]];
+  if(!nm) return null;
+  return FIELDLIST.find(f=>f.name===nm) || null;
+}
 
 function computeStatus(){
-  const size = (SESSION_FIELD && SESSION_FIELD.size) || ((FIELDS[SESSION.day[0]]||{}).size) || 12;
+  const lf = lockedField();
+  const size = (lf && lf.size) || (SESSION_FIELD && SESSION_FIELD.size) || 12;
   const cap2 = size * 2;   // starting spots = both sides
   const goalies = INORDER.filter(n=>GKS.has(n.trim().toLowerCase()));
   const others  = INORDER.filter(n=>!GKS.has(n.trim().toLowerCase()));
@@ -240,6 +247,48 @@ async function loadField(key){
     if(rows && rows[0] && rows[0].status) return JSON.parse(rows[0].status);
   }catch(e){}
   return null;
+}
+async function loadConfig(name){
+  if(!SHARED) return null;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${CFG}&name=eq.${name}&select=status`, {headers: sbHeaders()});
+    const rows = await res.json();
+    if(rows && rows[0] && rows[0].status) return JSON.parse(rows[0].status);
+  }catch(e){}
+  return null;
+}
+async function saveDayLock(){
+  if(!SHARED) return;
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {method:'POST',
+      headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+      body: JSON.stringify({session:CFG, name:'__DAYLOCK__', status:JSON.stringify(DAYLOCK), updated:new Date().toISOString()})});
+  }catch(e){}
+}
+
+
+function renderFieldLock(){
+  const box=$('fieldLock');
+  if(!SHARED || !FIELDLIST.length){ box.classList.remove('show'); box.innerHTML=''; return; }
+  const opts = d => `<option value="">— none —</option>` + FIELDLIST.map(f=>
+    `<option value="${esc(f.name)}" ${DAYLOCK[d]===f.name?'selected':''}>${esc(f.name||'Untitled')} · ${f.size} v ${f.size}</option>`).join('');
+  box.innerHTML = `
+    <div class="flock-h">Fields <span>lock which field is used each day</span></div>
+    <div class="flock-row"><label>Wed</label><select id="wedField">${opts('W')}</select></div>
+    <div class="flock-row"><label>Sat</label><select id="satField">${opts('S')}</select></div>`;
+  box.classList.add('show');
+  $('wedField').onchange = ()=>{ DAYLOCK.W = $('wedField').value || null; saveDayLock(); render(); };
+  $('satField').onchange = ()=>{ DAYLOCK.S = $('satField').value || null; saveDayLock(); render(); };
+}
+function renderVenue(){
+  const box=$('venue');
+  const f = lockedField();
+  if(!f || !(f.name || f.address)){ box.classList.remove('show'); box.innerHTML=''; return; }
+  const size=f.size||12;
+  const q=((f.name||'')+' '+(f.address||'')).trim();
+  const href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
+  box.innerHTML=`<span class="pin">📍</span><div class="txt"><b>${esc(f.name||'Field')}</b>${f.address?`<a href="${href}" target="_blank" rel="noopener">${esc(f.address)}</a>`:''}</div><span class="size">${size} v ${size}</span>`;
+  box.classList.add('show');
 }
 
 function renderStatus(){
@@ -287,29 +336,14 @@ function renderBody(){
   $('refreshBtn').style.display = SHARED ? 'block' : 'none';
   const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
 }
-function renderVenue(){
-  const box = $('venue');
-  // prefer the field SIDES published (so El Rio is 11 anytime); fall back to the day config
-  const f = SESSION_FIELD || FIELDS[SESSION.day[0]] || { size:12 };
-  const size = f.size || 12;
-  const q = ((f.name||'') + ' ' + (f.address||'')).trim();
-  const href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
-  const hasName = !!(f.name || f.address);
-  box.innerHTML = `
-    ${hasName ? `<span class="pin">📍</span>
-    <div class="txt">
-      <b>${esc(f.name || 'Field')}</b>
-      ${f.address ? `<a href="${href}" target="_blank" rel="noopener">${esc(f.address)}</a>` : ''}
-    </div>` : `<div class="txt"><b>${SESSION.day} game</b></div>`}
-    <span class="size">${size} v ${size}</span>`;
-  box.classList.add('show');
-}
-function render(){ renderStatus(); renderVenue(); renderBody(); }
+function render(){ renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
 
 async function refresh(){
   SESSION = currentSession(etNow());
   KEY = sessionKey(SESSION);
   SESSION_FIELD = await loadField(KEY);
+  FIELDLIST = (await loadConfig('__FIELDS__')) || [];
+  DAYLOCK   = (await loadConfig('__DAYLOCK__')) || {W:null,S:null};
   GKS = await loadGKs(KEY);
   const list = SESSION.isOpen ? await loadIns(KEY) : [];
   INORDER = list.map(x=>x.name);

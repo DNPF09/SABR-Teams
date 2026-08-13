@@ -444,6 +444,9 @@ async function publishField(){
     status: JSON.stringify({ name:f.name||'', address:f.address||'', size:DEFAULT_SIZE(f) }) }); }
   const gks = players.filter(p=>p.position==='GK').map(p=>p.name);
   rows.push({ session:key, name:'__GKS__', status: JSON.stringify(gks) });
+  // full field list (global) so the RSVP page can offer them for Wed/Sat locking
+  const list = (typeof fields!=='undefined' ? fields : []).map(x=>({ name:x.name||'', address:x.address||'', size:DEFAULT_SIZE(x) }));
+  rows.push({ session:'__config__', name:'__FIELDS__', status: JSON.stringify(list) });
   try{
     await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
@@ -1353,14 +1356,14 @@ document.querySelectorAll('.vs-opt').forEach(btn=>{
 $('fieldNewBtn').onclick = ()=>{
   const f = { id:uid(), name:'', address:'' };
   fields.push(f); selectedFieldId = f.id;
-  saveFields(); renderFieldSelect(); renderMatchVenue();
+  saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
   $('venueField').focus();
 };
 $('fieldDelBtn').onclick = ()=>{
   if(!selectedField()) return;
   fields = fields.filter(f=>f.id!==selectedFieldId);
   selectedFieldId = fields.length ? fields[0].id : null;
-  saveFields(); renderFieldSelect(); renderMatchVenue();
+  saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
 };
 ['venueField','venueAddr'].forEach(id=>{
   $(id).addEventListener('input', ()=>{
@@ -1510,6 +1513,7 @@ window.addEventListener('scroll', hideTip, true);
   selectedFieldId = fdata.selectedFieldId || (fields[0] && fields[0].id) || null;
   renderFieldSelect();
   renderMatchVenue();
+  publishField();     // make the field list available to the RSVP page
 })();
 </script>
 </body>
