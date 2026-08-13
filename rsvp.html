@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SABR · RSVP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pitch:#0E1518; --panel:#16211F; --panel-2:#1E2B29; --line:rgba(236,234,224,.12);
+    --chalk:#ECEAE0; --muted:#8698A0; --muted-2:#5E7378;
+    --red:#E23744; --gold:#F2B138; --ok:#57C08A; --def:#5FA8E0; --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:radial-gradient(1200px 600px at 50% -10%, #1a2a27 0%, transparent 60%),var(--pitch);
+    color:var(--chalk);font-family:'Inter',system-ui,sans-serif;min-height:100vh;}
+  .wrap{max-width:620px;margin:0 auto;padding:20px 16px 60px;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+  h1{font-family:'Anton';font-weight:400;font-size:30px;letter-spacing:.04em;margin:0;text-transform:uppercase;}
+  h1 .dot{color:var(--red);}
+  header p{margin:4px 0 0;color:var(--muted);font-size:12px;letter-spacing:.04em;}
+  .stamp{text-align:right;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);}
+  .stamp b{display:block;color:var(--chalk);font-size:13px;letter-spacing:.08em;}
+
+  .status{border-radius:var(--radius);padding:16px;margin-bottom:16px;border:1px solid var(--line);}
+  .status.open{background:rgba(87,192,138,.10);border-color:rgba(87,192,138,.35);}
+  .status.closed{background:var(--panel-2);}
+  .status .st-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+  .status .st-main{font-family:'Anton';font-size:22px;letter-spacing:.02em;margin-top:4px;text-transform:uppercase;}
+  .status.open .st-main{color:var(--ok);}
+  .status .st-sub{margin-top:6px;font-size:13px;color:var(--muted);}
+  .demo-banner{background:rgba(242,177,56,.12);border:1px solid rgba(242,177,56,.4);color:var(--gold);
+    border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:16px;line-height:1.4;}
+
+  .count{display:flex;align-items:baseline;gap:8px;margin-bottom:12px;}
+  .count b{font-family:'Anton';font-size:26px;color:var(--ok);}
+  .count span{color:var(--muted);font-size:13px;}
+
+  .search{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--chalk);
+    padding:12px 14px;font-family:'Inter';font-size:15px;outline:none;margin-bottom:12px;}
+  .search:focus{border-color:var(--muted-2);}
+
+  .list{display:flex;flex-direction:column;gap:8px;}
+  .row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,background .12s;}
+  .row.in{background:rgba(87,192,138,.12);border-color:rgba(87,192,138,.45);}
+  .row .check{width:24px;height:24px;flex:0 0 auto;border-radius:50%;border:2px solid var(--muted-2);
+    display:flex;align-items:center;justify-content:center;}
+  .row.in .check{background:var(--ok);border-color:var(--ok);}
+  .row .check svg{width:14px;height:14px;stroke:#08221a;stroke-width:3.5;fill:none;opacity:0;}
+  .row.in .check svg{opacity:1;}
+  .row .nm{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row .you{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);}
+  .disabled{opacity:.5;pointer-events:none;}
+  .footer{margin-top:22px;text-align:center;color:var(--muted-2);font-size:11px;line-height:1.5;}
+  .refresh{margin-top:14px;width:100%;background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:10px;padding:10px;font-family:'Inter';font-size:13px;cursor:pointer;}
+  .refresh:hover{border-color:var(--muted-2);color:var(--chalk);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>SABR<span class="dot">.</span> RSVP</h1>
+      <p>Tap your name if you're playing</p>
+    </div>
+    <div class="stamp">Pick-up<b>Wed 6PM · Sat 8AM</b></div>
+  </header>
+
+  <div id="demoBanner" class="demo-banner" style="display:none"></div>
+  <div id="status" class="status"></div>
+  <div id="body"></div>
+  <button id="refreshBtn" class="refresh" style="display:none">↻ Refresh</button>
+
+  <div class="footer">Windsor / SABR pickup · RSVP opens Tue &amp; Thu 8 AM ET</div>
+</div>
+
+<script>
+/* ============================================================
+   SHARED BACKEND (optional). Leave blank to run in local/demo
+   mode (each phone only). To make it shared for the whole group,
+   paste your Supabase project URL and anon key below — full
+   setup steps are in the message that delivered this file.
+   ============================================================ */
+const SUPABASE_URL = 'https://snzfdahttdyeouqsmqgl.supabase.co';        // from Settings > Data API
+const SUPABASE_ANON_KEY = 'sb_publishable_2vVk6QKUfQ2vgcqCTwCbVQ_5XmhE2Hh';   // publishable key
+const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+function sbHeaders(extra){
+  const h = { apikey: SUPABASE_ANON_KEY };
+  // legacy anon JWT keys go in the Authorization header too; new publishable keys must not
+  if(SUPABASE_ANON_KEY.indexOf('eyJ') === 0) h.Authorization = 'Bearer ' + SUPABASE_ANON_KEY;
+  return Object.assign(h, extra || {});
+}
+
+/* Roster — the names players choose from */
+const ROSTER = [
+  "Adrian Minor","Alan Davalos","Alfredo Aletto","Anthony Lombardo","Armando","Bill","Bruce",
+  "Carlos Acero","Carlos Bustamante","Carlos Olivera","Carlos Romero","Cezar Fernandez","Coco",
+  "David Moss","Duarte Pereira","Edwin Ecua","Edwin Salazar","Elmer Reyes","Elmer Ribeiro",
+  "Enrique Cocha","Eric Salameh","Felipe Santo","Fernando Dennis","Freddy","Gino Santi",
+  "Guillermo Campos","Hans Kuhlmann","Jadson","Jaime Cardenas","Jaime Guarin","Joe","John Prokos",
+  "Jorg Gomolka","Jorge","Jorje Torrejon","Jose Antonio","Jose del Carpio","Jose Rey","Juan Montoya",
+  "Justin Mango","Kevin","Manolo","Marcelo","Mariano","Mario Selman","Mauricio Ortiz","Mauricio Plata",
+  "Messy","Metin","Michael Seward","Moishe Mana","Moshe P.","Nelson","Ozzy","Pierre","Pupi","Rafael",
+  "Ricardo","Rolf","Rudy","Sean","Sydney","Tino","Vicente","Wilvens","Yeso","Yumar"];
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- schedule (America/New_York) ----------
+   RSVP opens Tue 8:00 AM ET for the Wed 6 PM game,
+   and Thu 8:00 AM ET for the Sat 8 AM game. */
+function etNow(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})); }
+function shift(base, days, hour){ const d=new Date(base); d.setDate(d.getDate()+days); d.setHours(hour,0,0,0); return d; }
+
+function currentSession(now){
+  const cands = [];
+  for(let add=0; add<=9; add++){
+    const d = new Date(now); d.setDate(d.getDate()+add);
+    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); if(k>now) cands.push({kick:k, open:shift(k,-1,8), day:'Wednesday'}); }
+    if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  if(k>now) cands.push({kick:k, open:shift(k,-2,8), day:'Saturday'}); }
+  }
+  cands.sort((a,b)=>a.kick-b.kick);
+  const s = cands[0];
+  s.isOpen = now >= s.open && now < s.kick;
+  return s;
+}
+function fmt(d, withTime){
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const mons=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let h=d.getHours(); const ap=h>=12?'PM':'AM'; let hh=h%12||12; const mm=d.getMinutes().toString().padStart(2,'0');
+  const t = mm==='00' ? `${hh} ${ap}` : `${hh}:${mm} ${ap}`;
+  return withTime ? `${days[d.getDay()]}, ${mons[d.getMonth()]} ${d.getDate()} · ${t}` : `${days[d.getDay()]} ${t}`;
+}
+function sessionKey(s){ const k=s.kick; return `${k.getFullYear()}-${k.getMonth()+1}-${k.getDate()}-${s.day[0]}`; }
+
+/* ---------- data (Supabase if configured, else localStorage) ---------- */
+async function loadIns(key){
+  if(SHARED){
+    try{
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name`,
+        {headers: sbHeaders()});
+      const rows = await res.json();
+      return new Set((rows||[]).map(r=>r.name));
+    }catch(e){ return new Set(); }
+  }
+  try{ const all=JSON.parse(localStorage.getItem('sabr:rsvp')||'{}'); return new Set(all[key]||[]); }
+  catch(e){ return new Set(); }
+}
+async function setIn(key, name, isIn){
+  if(SHARED){
+    try{
+      await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {method:'POST',
+        headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+        body: JSON.stringify({session:key, name, status:isIn?'in':'out', updated:new Date().toISOString()})});
+    }catch(e){}
+    return;
+  }
+  try{
+    const all=JSON.parse(localStorage.getItem('sabr:rsvp')||'{}');
+    const set=new Set(all[key]||[]); isIn?set.add(name):set.delete(name);
+    all[key]=[...set]; localStorage.setItem('sabr:rsvp', JSON.stringify(all));
+  }catch(e){}
+}
+
+/* ---------- render ---------- */
+let SESSION=null, KEY='', INS=new Set(), FILTER='';
+
+function renderStatus(){
+  const box=$('status');
+  if(SESSION.isOpen){
+    box.className='status open';
+    box.innerHTML=`<div class="st-label">RSVP open · playing</div>
+      <div class="st-main">${fmt(SESSION.kick,true)}</div>
+      <div class="st-sub">Tap your name below to mark yourself in. Tap again to remove.</div>`;
+  }else{
+    box.className='status closed';
+    box.innerHTML=`<div class="st-label">RSVP closed</div>
+      <div class="st-main">Opens ${fmt(SESSION.open,true)}</div>
+      <div class="st-sub">Sign-ups open Tuesday 8 AM (for Wednesday) and Thursday 8 AM (for Saturday), Eastern time. Next game: ${fmt(SESSION.kick,true)}.</div>`;
+  }
+}
+function renderBody(){
+  const body=$('body');
+  if(!SESSION.isOpen){ body.innerHTML=''; $('refreshBtn').style.display='none'; return; }
+  const names=[...ROSTER].sort((a,b)=>a.localeCompare(b));
+  const f=FILTER.trim().toLowerCase();
+  const shown=f?names.filter(n=>n.toLowerCase().includes(f)):names;
+  const inCount=INS.size;
+  body.innerHTML=`
+    <div class="count"><b>${inCount}</b><span>${inCount===1?'player':'players'} in so far</span></div>
+    <input class="search" id="search" type="text" placeholder="Search your name…" autocomplete="off" value="${esc(FILTER)}">
+    <div class="list">
+      ${shown.map(n=>`<div class="row ${INS.has(n)?'in':''}" data-name="${esc(n)}">
+        <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <span class="nm">${esc(n)}</span>
+      </div>`).join('')}
+    </div>`;
+  $('refreshBtn').style.display = SHARED ? 'block' : 'none';
+  const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
+}
+function render(){ renderStatus(); renderBody(); }
+
+async function refresh(){
+  SESSION = currentSession(etNow());
+  KEY = sessionKey(SESSION);
+  if(SESSION.isOpen) INS = await loadIns(KEY);
+  render();
+}
+
+$('body').addEventListener('click', async e=>{
+  const row=e.target.closest('.row'); if(!row || !SESSION.isOpen) return;
+  const name=row.dataset.name;
+  const nowIn=!INS.has(name);
+  nowIn?INS.add(name):INS.delete(name);
+  render();                        // optimistic
+  await setIn(KEY, name, nowIn);
+  if(SHARED){ INS = await loadIns(KEY); render(); }
+});
+$('refreshBtn').onclick = refresh;
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
+if(SHARED) setInterval(()=>{ if(!document.hidden && SESSION && SESSION.isOpen) refresh(); }, 20000);
+
+if(!SHARED){
+  $('demoBanner').style.display='block';
+  $('demoBanner').innerHTML='Demo mode — RSVPs are only saved on <b>this phone</b> and aren\u2019t shared yet. Add the free Supabase keys at the top of this file to make it live for the whole group.';
+}
+refresh();
+</script>
+</body>
+</html>
