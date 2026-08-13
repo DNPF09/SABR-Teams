@@ -388,32 +388,67 @@ async function syncRSVPs(){
   if(!SB_ON){ flashBtn(btn, 'Not configured'); return; }
   const orig = '⤓ Sync RSVPs';
   btn.disabled = true; btn.textContent = 'Syncing…';
-  let names;
+  let inOrder;
   try{
     const key = rsvpSessionKey();
-    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name`, {headers: sbHeaders()});
+    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name,updated&order=updated.asc`, {headers: sbHeaders()});
     if(!res.ok) throw new Error('http '+res.status);
     const rows = await res.json();
-    names = new Set((rows||[]).map(r=>(r.name||'').trim().toLowerCase()));
+    inOrder = (rows||[]).map(r=>(r.name||'').trim());
   }catch(e){
     btn.disabled=false; flashBtn(btn, 'Sync failed', orig); return;
   }
-  // set attendance to exactly the RSVP "in" list
-  let matched = 0;
+  // starting = first (size*2) to sign in, keepers always start; the rest are subs
+  refreshCap();
+  const cap2 = CAP * 2;
+  const byName = new Map(players.map(p=>[p.name.trim().toLowerCase(), p]));
+  const isGK = n => { const p=byName.get(n.trim().toLowerCase()); return p && p.position==='GK'; };
+  const goalies = inOrder.filter(isGK);
+  const others  = inOrder.filter(n=>!isGK(n));
+  const starting = [];
+  for(const g of goalies) if(starting.length<cap2) starting.push(g);
+  for(const o of others)  if(starting.length<cap2) starting.push(o);
+  const startSet = new Set(starting.map(n=>n.toLowerCase()));
+  const inSet    = new Set(inOrder.map(n=>n.toLowerCase()));
+
+  let nStart=0, nSub=0;
   players.forEach(p=>{
-    const inList = names.has(p.name.trim().toLowerCase());
-    p.present = inList;
-    if(inList) matched++;
+    const k=p.name.trim().toLowerCase();
+    if(inSet.has(k)){
+      p.present = true;
+      p.sub = !startSet.has(k);        // signed in but past the starting cut -> sub
+      startSet.has(k) ? nStart++ : nSub++;
+    } else {
+      p.present = false; p.sub = false;
+    }
   });
   save(players); renderRoster();
   btn.disabled = false;
-  flashBtn(btn, `✓ ${matched} marked in`, orig);
+  flashBtn(btn, `✓ ${nStart} starting · ${nSub} sub${nSub===1?'':'s'}`, orig);
 }
 function flashBtn(btn, msg, revertTo){
   if(!btn) return;
   const back = revertTo || btn.textContent;
   btn.textContent = msg;
   setTimeout(()=>{ btn.textContent = back; }, 2600);
+}
+
+// publish the selected field + the list of goalies for the upcoming session,
+// so the RSVP page can show field/size and give keepers a starting spot
+async function publishField(){
+  if(!SB_ON) return;
+  const key = rsvpSessionKey();
+  const rows = [];
+  const f = (typeof selectedField==='function') ? selectedField() : null;
+  if(f){ rows.push({ session:key, name:'__FIELD__',
+    status: JSON.stringify({ name:f.name||'', address:f.address||'', size:DEFAULT_SIZE(f) }) }); }
+  const gks = players.filter(p=>p.position==='GK').map(p=>p.name);
+  rows.push({ session:key, name:'__GKS__', status: JSON.stringify(gks) });
+  try{
+    await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
+      headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+      body: JSON.stringify(rows)});
+  }catch(e){}
 }
 
 /* ---------------- storage ----------------
@@ -1090,6 +1125,7 @@ function doBalance(){
   if(history.length > 30) history.shift();
   idx = history.length - 1;
   saveTeamsState();
+  publishField();                                    // let the RSVP page show this field & size
   renderMatch(); updateMatchState();
   if(window.innerWidth <= 760) setView('match');
 }
@@ -1296,14 +1332,14 @@ function renderMatchVenue(){
 
 $('fieldSelect').addEventListener('change', ()=>{
   selectedFieldId = $('fieldSelect').value || null;
-  saveFields(); renderFieldSelect(); renderMatchVenue();
+  saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
 });
 document.querySelectorAll('.vs-opt').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     let f = selectedField();
     if(!f){ f = { id:uid(), name:'', address:'' }; fields.push(f); selectedFieldId = f.id; }
     f.size = +btn.dataset.size;
-    saveFields(); renderFieldSelect(); renderMatchVenue();
+    saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
   });
 });
 $('fieldNewBtn').onclick = ()=>{
@@ -1329,7 +1365,7 @@ $('fieldDelBtn').onclick = ()=>{
     if(opt) opt.textContent = f.name || 'Untitled field';
     else renderFieldSelect();
     $('fieldDelBtn').disabled = false;
-    saveFields(); renderMatchVenue();
+    saveFields(); renderMatchVenue(); publishField();
   });
 });
 $('nameInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addPlayer($('nameInput').value); $('nameInput').value=''; } });
@@ -1352,7 +1388,7 @@ $('rosterList').addEventListener('click', e=>{
   else if(act==='subtog'){ p.sub=!p.sub; if(p.sub) p.present=true; if(teams) applySub(p); }
   else if(act==='captain'){ p.captain=!p.captain; }
   else if(act==='kill') players=players.filter(x=>x.id!==p.id);
-  else if(act==='pos') p.position=ctrl.dataset.pos;
+  else if(act==='pos'){ p.position=ctrl.dataset.pos; publishField(); }
   else if(act==='skill') p.skill=+ctrl.dataset.val;
   else if(act==='speed') p.speed=+ctrl.dataset.val;
   else if(act==='endurance') p.endurance=+ctrl.dataset.val;
