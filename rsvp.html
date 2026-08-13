@@ -33,8 +33,29 @@
   .status .st-sub{margin-top:6px;font-size:13px;color:var(--muted);}
   .demo-banner{background:rgba(242,177,56,.12);border:1px solid rgba(242,177,56,.4);color:var(--gold);
     border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:16px;line-height:1.4;}
+  .mv{display:none;align-items:center;gap:10px;margin-bottom:16px;padding:11px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
+  .mv.show{display:flex;}
+  .mv .pin{font-size:16px;line-height:1;}
+  .mv .txt{display:flex;flex-direction:column;min-width:0;line-height:1.3;}
+  .mv .txt b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mv .txt a{font-size:12px;color:var(--def);text-decoration:underline;text-underline-offset:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mv .size{margin-left:auto;flex:0 0 auto;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--ok);background:rgba(87,192,138,.12);border:1px solid rgba(87,192,138,.35);border-radius:20px;padding:5px 11px;white-space:nowrap;}
 
-  .count{display:flex;align-items:baseline;gap:8px;margin-bottom:12px;}
+  .count{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;}
+  .hint{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.4;}
+  .grp{margin-bottom:12px;}
+  .grp-h{font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px;font-weight:700;}
+  .grp-h.start{color:var(--ok);}
+  .grp-h.sub{color:var(--muted);}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-size:12px;font-weight:600;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 10px;color:var(--chalk);}
+  .chip.gk{border-color:rgba(242,177,56,.5);color:var(--gold);}
+  .chip .ts{font-style:normal;font-weight:500;color:var(--muted-2);margin-left:6px;font-size:11px;}
+  .row-ts{flex:0 0 auto;font-size:11px;color:var(--muted-2);white-space:nowrap;}
+  .bdg{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:20px;padding:3px 8px;}
+  .bdg.start{background:rgba(87,192,138,.16);color:var(--ok);}
+  .bdg.sub{background:rgba(134,152,160,.16);color:var(--muted);}
+  .bdg.gk{background:rgba(242,177,56,.16);color:var(--gold);}
   .count b{font-family:'Anton';font-size:26px;color:var(--ok);}
   .count span{color:var(--muted);font-size:13px;}
 
@@ -72,6 +93,7 @@
 
   <div id="demoBanner" class="demo-banner" style="display:none"></div>
   <div id="status" class="status"></div>
+  <div id="venue" class="mv"></div>
   <div id="body"></div>
   <button id="refreshBtn" class="refresh" style="display:none">↻ Refresh</button>
 
@@ -88,6 +110,17 @@
 const SUPABASE_URL = 'https://snzfdahttdyeouqsmqgl.supabase.co';        // from Settings > Data API
 const SUPABASE_ANON_KEY = 'sb_publishable_2vVk6QKUfQ2vgcqCTwCbVQ_5XmhE2Hh';   // publishable key
 const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+/* ============================================================
+   FIELDS — fallback only. The RSVP page normally shows the exact
+   field you picked in SIDES (published to Supabase), so El Rio is
+   11 v 11 whenever you play there. These values are used only until
+   SIDES has published a field for the upcoming game.
+   ============================================================ */
+const FIELDS = {
+  W: { name: 'El Rio',  address: '', size: 11 },   // Wednesday 6 PM (fallback)
+  S: { name: '',        address: '', size: 12 }    // Saturday 8 AM (fallback)
+};
 function sbHeaders(extra){
   const h = { apikey: SUPABASE_ANON_KEY };
   // legacy anon JWT keys go in the Authorization header too; new publishable keys must not
@@ -138,17 +171,27 @@ function fmt(d, withTime){
 function sessionKey(s){ const k=s.kick; return `${k.getFullYear()}-${k.getMonth()+1}-${k.getDate()}-${s.day[0]}`; }
 
 /* ---------- data (Supabase if configured, else localStorage) ---------- */
-async function loadIns(key){
+async function loadIns(key){                 // returns [{name, ts}] in sign-up order (earliest first)
   if(SHARED){
     try{
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name`,
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name,updated&order=updated.asc`,
         {headers: sbHeaders()});
       const rows = await res.json();
-      return new Set((rows||[]).map(r=>r.name));
-    }catch(e){ return new Set(); }
+      return (rows||[]).map(r=>({name:r.name, ts:r.updated}));
+    }catch(e){ return []; }
   }
-  try{ const all=JSON.parse(localStorage.getItem('sabr:rsvp')||'{}'); return new Set(all[key]||[]); }
-  catch(e){ return new Set(); }
+  try{ const all=JSON.parse(localStorage.getItem('sabr:rsvp')||'{}');
+    return (all[key]||[]).map(x=> typeof x==='string' ? {name:x, ts:null} : x); }
+  catch(e){ return []; }
+}
+async function loadGKs(key){                  // goalie names SIDES published (keepers always start)
+  if(!SHARED) return new Set();
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&name=eq.__GKS__&select=status`, {headers: sbHeaders()});
+    const rows = await res.json();
+    if(rows && rows[0] && rows[0].status) return new Set(JSON.parse(rows[0].status).map(n=>(n||'').trim().toLowerCase()));
+  }catch(e){}
+  return new Set();
 }
 async function setIn(key, name, isIn){
   if(SHARED){
@@ -161,13 +204,43 @@ async function setIn(key, name, isIn){
   }
   try{
     const all=JSON.parse(localStorage.getItem('sabr:rsvp')||'{}');
-    const set=new Set(all[key]||[]); isIn?set.add(name):set.delete(name);
-    all[key]=[...set]; localStorage.setItem('sabr:rsvp', JSON.stringify(all));
+    let arr=(all[key]||[]).map(x=> typeof x==='string' ? {name:x, ts:null} : x).filter(x=>x.name!==name);
+    if(isIn) arr.push({name, ts:new Date().toISOString()});
+    all[key]=arr; localStorage.setItem('sabr:rsvp', JSON.stringify(all));
   }catch(e){}
+}
+function fmtStamp(iso){
+  if(!iso) return '';
+  try{ return new Date(iso).toLocaleString('en-US',{timeZone:'America/New_York',weekday:'short',hour:'numeric',minute:'2-digit'}); }
+  catch(e){ return ''; }
 }
 
 /* ---------- render ---------- */
-let SESSION=null, KEY='', INS=new Set(), FILTER='';
+let SESSION=null, KEY='', INORDER=[], INSET=new Set(), GKS=new Set(), TIMES={}, FILTER='', SESSION_FIELD=null;
+
+function computeStatus(){
+  const size = (SESSION_FIELD && SESSION_FIELD.size) || ((FIELDS[SESSION.day[0]]||{}).size) || 12;
+  const cap2 = size * 2;   // starting spots = both sides
+  const goalies = INORDER.filter(n=>GKS.has(n.trim().toLowerCase()));
+  const others  = INORDER.filter(n=>!GKS.has(n.trim().toLowerCase()));
+  const starting = [];
+  for(const g of goalies) if(starting.length<cap2) starting.push(g);   // keepers always start
+  for(const o of others)  if(starting.length<cap2) starting.push(o);   // then earliest sign-ups
+  const startSet = new Set(starting);
+  const subs = INORDER.filter(n=>!startSet.has(n));
+  return { size, cap2, starting, subs, startSet };
+}
+
+// read the field SIDES published for this session (name/address/size)
+async function loadField(key){
+  if(!SHARED) return null;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&name=eq.__FIELD__&select=status`, {headers: sbHeaders()});
+    const rows = await res.json();
+    if(rows && rows[0] && rows[0].status) return JSON.parse(rows[0].status);
+  }catch(e){}
+  return null;
+}
 
 function renderStatus(){
   const box=$('status');
@@ -186,39 +259,79 @@ function renderStatus(){
 function renderBody(){
   const body=$('body');
   if(!SESSION.isOpen){ body.innerHTML=''; $('refreshBtn').style.display='none'; return; }
+  const st = computeStatus();
+  const gk = n => GKS.has(n.trim().toLowerCase());
+  const chip = n => `<span class="chip ${gk(n)?'gk':''}">${gk(n)?'🧤 ':''}${esc(n)}${TIMES[n]?`<em class="ts">${fmtStamp(TIMES[n])}</em>`:''}</span>`;
+  const badge = n => {
+    if(!INSET.has(n)) return '';
+    if(gk(n)) return '<span class="bdg gk">GK · starting</span>';
+    return st.startSet.has(n) ? '<span class="bdg start">Starting</span>' : '<span class="bdg sub">Sub</span>';
+  };
   const names=[...ROSTER].sort((a,b)=>a.localeCompare(b));
   const f=FILTER.trim().toLowerCase();
   const shown=f?names.filter(n=>n.toLowerCase().includes(f)):names;
-  const inCount=INS.size;
   body.innerHTML=`
-    <div class="count"><b>${inCount}</b><span>${inCount===1?'player':'players'} in so far</span></div>
+    <div class="count"><b>${INORDER.length}</b><span>in · ${st.starting.length} starting · ${st.subs.length} sub${st.subs.length===1?'':'s'}</span></div>
+    <div class="hint">First ${st.cap2} to sign in are the starting lineup${GKS.size?' · keepers always start':''}.</div>
+    ${st.starting.length?`<div class="grp"><div class="grp-h start">Starting · ${st.starting.length}/${st.cap2}</div><div class="chips">${st.starting.map(chip).join('')}</div></div>`:''}
+    ${st.subs.length?`<div class="grp"><div class="grp-h sub">Subs · ${st.subs.length}</div><div class="chips">${st.subs.map(chip).join('')}</div></div>`:''}
     <input class="search" id="search" type="text" placeholder="Search your name…" autocomplete="off" value="${esc(FILTER)}">
     <div class="list">
-      ${shown.map(n=>`<div class="row ${INS.has(n)?'in':''}" data-name="${esc(n)}">
+      ${shown.map(n=>`<div class="row ${INSET.has(n)?'in':''}" data-name="${esc(n)}">
         <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
         <span class="nm">${esc(n)}</span>
+        ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
+        ${badge(n)}
       </div>`).join('')}
     </div>`;
   $('refreshBtn').style.display = SHARED ? 'block' : 'none';
   const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
 }
-function render(){ renderStatus(); renderBody(); }
+function renderVenue(){
+  const box = $('venue');
+  // prefer the field SIDES published (so El Rio is 11 anytime); fall back to the day config
+  const f = SESSION_FIELD || FIELDS[SESSION.day[0]] || { size:12 };
+  const size = f.size || 12;
+  const q = ((f.name||'') + ' ' + (f.address||'')).trim();
+  const href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  const hasName = !!(f.name || f.address);
+  box.innerHTML = `
+    ${hasName ? `<span class="pin">📍</span>
+    <div class="txt">
+      <b>${esc(f.name || 'Field')}</b>
+      ${f.address ? `<a href="${href}" target="_blank" rel="noopener">${esc(f.address)}</a>` : ''}
+    </div>` : `<div class="txt"><b>${SESSION.day} game</b></div>`}
+    <span class="size">${size} v ${size}</span>`;
+  box.classList.add('show');
+}
+function render(){ renderStatus(); renderVenue(); renderBody(); }
 
 async function refresh(){
   SESSION = currentSession(etNow());
   KEY = sessionKey(SESSION);
-  if(SESSION.isOpen) INS = await loadIns(KEY);
+  SESSION_FIELD = await loadField(KEY);
+  GKS = await loadGKs(KEY);
+  const list = SESSION.isOpen ? await loadIns(KEY) : [];
+  INORDER = list.map(x=>x.name);
+  INSET = new Set(INORDER);
+  TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
   render();
 }
 
 $('body').addEventListener('click', async e=>{
   const row=e.target.closest('.row'); if(!row || !SESSION.isOpen) return;
   const name=row.dataset.name;
-  const nowIn=!INS.has(name);
-  nowIn?INS.add(name):INS.delete(name);
+  const nowIn=!INSET.has(name);
+  if(nowIn){ INSET.add(name); INORDER.push(name); TIMES[name]=new Date().toISOString(); }
+  else { INSET.delete(name); INORDER=INORDER.filter(n=>n!==name); delete TIMES[name]; }
   render();                        // optimistic
   await setIn(KEY, name, nowIn);
-  if(SHARED){ INS = await loadIns(KEY); render(); }
+  if(SHARED){
+    const list = await loadIns(KEY);
+    INORDER = list.map(x=>x.name); INSET = new Set(INORDER);
+    TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
+    render();
+  }
 });
 $('refreshBtn').onclick = refresh;
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
