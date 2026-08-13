@@ -68,6 +68,11 @@
   .field-btn:hover{border-color:var(--muted-2);}
   .venue-addr-row{display:flex;gap:8px;}
   .venue-addr-row input{flex:1;}
+  .venue-size-row{display:flex;align-items:center;gap:10px;}
+  .vs-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  .vs-toggle{display:flex;gap:6px;margin-left:auto;}
+  .vs-opt{width:42px;padding:7px 0;border-radius:8px;border:1px solid var(--line);background:var(--pitch);color:var(--muted);font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer;}
+  .vs-opt.on{background:var(--ok);border-color:var(--ok);color:#08221a;}
   /* selected field shown under Teams */
   .match-venue{display:none;align-items:center;gap:10px;margin-bottom:14px;padding:11px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
   .match-venue.show{display:flex;}
@@ -78,6 +83,7 @@
   .match-venue .mv-pin{font-size:16px;line-height:1;}
   .match-venue .mv-text{display:flex;flex-direction:column;min-width:0;line-height:1.3;}
   .match-venue .mv-text b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .match-venue .mv-size{margin-left:auto;flex:0 0 auto;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--ok);background:rgba(87,192,138,.12);border:1px solid rgba(87,192,138,.35);border-radius:20px;padding:5px 11px;white-space:nowrap;}
   .match-venue .mv-text span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .match-venue .mv-text a.mv-addr{font-size:12px;color:var(--def);text-decoration:underline;text-underline-offset:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .match-venue .mv-text a.mv-addr:hover{color:var(--chalk);}
@@ -88,6 +94,13 @@
   .addrow button:active{transform:translateY(1px);}
 
   .toolbar{display:flex;gap:8px;margin-bottom:16px;}
+  .rsvp-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .btn-rsvp{flex:1;background:rgba(95,168,224,.14);border:1px solid rgba(95,168,224,.4);color:var(--def);
+    border-radius:10px;padding:11px;font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer;transition:background .12s;}
+  .btn-rsvp:hover{background:rgba(95,168,224,.22);}
+  .btn-rsvp:disabled{opacity:.6;cursor:default;}
+  .rsvp-link{flex:0 0 auto;color:var(--muted);font-size:12px;text-decoration:none;border-bottom:1px dotted var(--muted-2);white-space:nowrap;}
+  .rsvp-link:hover{color:var(--chalk);}
   .toolbar .btn-ghost{flex:1;padding:11px;font-size:13px;background:var(--panel-2);color:var(--chalk);border:1px solid var(--line);border-radius:12px;cursor:pointer;font-family:'Inter';font-weight:600;}
 
   .roster{display:flex;flex-direction:column;gap:10px;}
@@ -100,6 +113,11 @@
   .pcard.in .presence svg{opacity:1;}
   .pname{flex:1;min-width:0;font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .subtog{background:transparent;border:1px solid var(--muted-2);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:20px;padding:4px 10px;cursor:pointer;font-family:'Inter';}
+  .captog{width:24px;height:24px;flex:0 0 auto;background:transparent;border:1px solid var(--muted-2);color:var(--muted);font-size:11px;font-weight:800;border-radius:50%;cursor:pointer;font-family:'Inter';padding:0;}
+  .captog:hover{border-color:var(--gold);color:var(--gold);}
+  .captog.on{background:var(--gold);border-color:var(--gold);color:#241a04;}
+  .pcard.is-capt{border-color:rgba(242,177,56,.5);}
+  .capt-mark{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;background:var(--gold);color:#241a04;border-radius:50%;font-size:9px;font-weight:800;vertical-align:middle;}
   .edit{background:transparent;border:0;color:var(--muted-2);cursor:pointer;padding:0 4px;font-size:14px;line-height:1;}
   .edit:hover{color:var(--chalk);}
   .name-input{flex:1;min-width:0;background:var(--pitch);border:1px solid var(--age);border-radius:8px;color:var(--chalk);font-family:'Inter';font-weight:600;font-size:15px;padding:6px 9px;outline:none;}
@@ -232,6 +250,16 @@
   .res-row.draw .res-w{color:var(--muted);}
   .res-undo{margin-left:auto;background:transparent;border:0;color:var(--muted);font-size:11px;text-decoration:underline;cursor:pointer;}
   .res-undo:hover{color:var(--red);}
+  /* saved lineups */
+  .saved-lineups{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2);}
+  .sl-head{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--chalk);margin-bottom:10px;}
+  .sl-row{display:flex;align-items:stretch;gap:8px;margin-bottom:7px;}
+  .sl-load{flex:1;display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--pitch);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;color:var(--chalk);font-family:'Inter';}
+  .sl-load:hover{border-color:var(--muted);}
+  .sl-label{font-size:13px;font-weight:700;}
+  .sl-meta{font-size:11px;color:var(--muted);letter-spacing:.03em;}
+  .sl-del{flex:0 0 auto;width:40px;background:transparent;border:1px solid var(--line);border-radius:10px;color:var(--muted-2);font-size:18px;cursor:pointer;}
+  .sl-del:hover{color:var(--red);border-color:var(--red);}
   .match-empty{text-align:center;color:var(--muted);padding:34px 12px;font-size:14px;}
 
   .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
@@ -284,6 +312,13 @@
         <div class="venue-addr-row">
           <input id="venueAddr" type="text" placeholder="Address" autocomplete="off" enterkeyhint="done">
         </div>
+        <div class="venue-size-row">
+          <span class="vs-label">Players per side</span>
+          <div class="vs-toggle">
+            <button class="vs-opt" data-size="11">11</button>
+            <button class="vs-opt" data-size="12">12</button>
+          </div>
+        </div>
       </div>
       <div class="addrow">
         <input id="nameInput" type="text" placeholder="Add a player…" autocomplete="off" enterkeyhint="done">
@@ -293,6 +328,10 @@
         <button class="btn-ghost" id="loadAllBtn">Load All</button>
         <button class="btn-ghost" id="loadRegularBtn">Load Regular</button>
         <button class="btn-ghost" id="clearAttBtn">Clear</button>
+      </div>
+      <div class="rsvp-row">
+        <button class="btn-rsvp" id="syncRsvpBtn">⤓ Sync RSVPs</button>
+        <a class="rsvp-link" href="rsvp.html" target="_blank" rel="noopener">Open RSVP page ↗</a>
       </div>
       <div class="roster" id="rosterList"></div>
     </section>
@@ -311,6 +350,7 @@
         <button class="btn btn-primary" id="balanceBtn" disabled>Balance teams</button>
         <button class="btn btn-ghost" id="reshuffleBtn" disabled>Reshuffle</button>
         <button class="btn btn-ghost" id="prevBtn" disabled title="Go back to a previous balanced lineup">↩ Previous</button>
+        <button class="btn btn-ghost" id="saveLineupBtn" disabled title="Save this lineup so you can return to it later">💾 Save</button>
       </div>
     </section>
   </div>
@@ -320,6 +360,61 @@
 "use strict";
 
 const POSITIONS = ["GK","DEF","MID","FWD"];
+
+/* ---------------- RSVP sync (shared Supabase, same project as rsvp.html) ---------------- */
+const SB_URL = 'https://snzfdahttdyeouqsmqgl.supabase.co';
+const SB_KEY = 'sb_publishable_2vVk6QKUfQ2vgcqCTwCbVQ_5XmhE2Hh';
+const SB_ON = !!(SB_URL && SB_KEY);
+function sbHeaders(extra){
+  const h = { apikey: SB_KEY };
+  if(SB_KEY.indexOf('eyJ') === 0) h.Authorization = 'Bearer ' + SB_KEY;
+  return Object.assign(h, extra || {});
+}
+// current session key — MUST match rsvp.html exactly (ET wall-clock; W=Wed 6pm, S=Sat 8am)
+function rsvpSessionKey(){
+  const now = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const cands = [];
+  for(let add=0; add<=9; add++){
+    const d = new Date(now); d.setDate(d.getDate()+add);
+    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); if(k>now) cands.push({k, day:'W'}); }
+    if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  if(k>now) cands.push({k, day:'S'}); }
+  }
+  cands.sort((a,b)=>a.k-b.k);
+  const s = cands[0];
+  return `${s.k.getFullYear()}-${s.k.getMonth()+1}-${s.k.getDate()}-${s.day}`;
+}
+async function syncRSVPs(){
+  const btn = document.getElementById('syncRsvpBtn');
+  if(!SB_ON){ flashBtn(btn, 'Not configured'); return; }
+  const orig = '⤓ Sync RSVPs';
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  let names;
+  try{
+    const key = rsvpSessionKey();
+    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.${encodeURIComponent(key)}&status=eq.in&select=name`, {headers: sbHeaders()});
+    if(!res.ok) throw new Error('http '+res.status);
+    const rows = await res.json();
+    names = new Set((rows||[]).map(r=>(r.name||'').trim().toLowerCase()));
+  }catch(e){
+    btn.disabled=false; flashBtn(btn, 'Sync failed', orig); return;
+  }
+  // set attendance to exactly the RSVP "in" list
+  let matched = 0;
+  players.forEach(p=>{
+    const inList = names.has(p.name.trim().toLowerCase());
+    p.present = inList;
+    if(inList) matched++;
+  });
+  save(players); renderRoster();
+  btn.disabled = false;
+  flashBtn(btn, `✓ ${matched} marked in`, orig);
+}
+function flashBtn(btn, msg, revertTo){
+  if(!btn) return;
+  const back = revertTo || btn.textContent;
+  btn.textContent = msg;
+  setTimeout(()=>{ btn.textContent = back; }, 2600);
+}
 
 /* ---------------- storage ----------------
    Ratings/positions/attendance persist forever by writing to every
@@ -418,9 +513,32 @@ let fields = [];            // [{id,name,address}] places you play
 let selectedFieldId = null; // which field shows under Teams
 let teamsWhen = null;       // timestamp of the session the current teams are for
 let results = [];           // logged game results (see logResult)
-let records = {};           // derived per-player {w,l,d} from results
-const CAP = 12;     // max players per side; extras become subs
+let records = {};           // derived per-player {w,l,d,form} from results
+let savedLineups = [];      // lineups you explicitly saved to return to
+
+/* explicitly-saved lineups (separate from the rolling auto-history) */
+const SAVED_KEY = 'sides:savedLineups';
+async function saveSavedLineups(){
+  const json = JSON.stringify(savedLineups);
+  try{ if(window.storage && window.storage.set) await window.storage.set(SAVED_KEY, json, false); }catch(e){}
+  try{ localStorage.setItem(SAVED_KEY, json); }catch(e){}
+}
+async function loadSavedLineups(){
+  try{
+    if(window.storage && window.storage.get){
+      const r = await window.storage.get(SAVED_KEY, false);
+      if(r && r.value) return JSON.parse(r.value);
+    }
+  }catch(e){}
+  try{ const v = localStorage.getItem(SAVED_KEY); if(v) return JSON.parse(v); }catch(e){}
+  return [];
+}
+let CAP = 12;       // max players per side; set from the selected field's size
+const DEFAULT_SIZE = f => (f && typeof f.size==='number') ? f.size : (/el\s*rio/i.test(f && f.name || '') ? 11 : 12);
+function refreshCap(){ const f = (typeof selectedField==='function') ? selectedField() : null; CAP = f ? DEFAULT_SIZE(f) : 12; }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const DEFAULT_CAPTAINS = ['carlos olivera','armando'];
+const isDefaultCaptain = name => DEFAULT_CAPTAINS.includes((name||'').trim().toLowerCase());
 
 /* game results — logged per match, persisted; per-player W/L/D is derived from them */
 const RESULTS_KEY = 'sides:results';
@@ -441,10 +559,23 @@ async function loadResults(){
 }
 function recomputeRecords(){
   const m = {};
-  const bump=(id,k)=>{ (m[id]=m[id]||{w:0,l:0,d:0})[k]++; };
+  const get = id => (m[id] = m[id] || {w:0,l:0,d:0,form:0});
   for(const r of results){
-    for(const id of (r.redIds||[]))   bump(id, r.winner==='red'?'w':r.winner==='white'?'l':'d');
-    for(const id of (r.whiteIds||[])) bump(id, r.winner==='white'?'w':r.winner==='red'?'l':'d');
+    const hasScore = typeof r.sr==='number' && typeof r.sw==='number';
+    // margin drives "form": a 6-1 win counts more than a 1-0, capped so blowouts don't dominate
+    const mag = hasScore ? Math.min(3, Math.max(1, Math.abs(r.sr - r.sw))) : 1;
+    for(const id of (r.redIds||[])){
+      const o = get(id);
+      if(r.winner==='red'){ o.w++; o.form += mag; }
+      else if(r.winner==='white'){ o.l++; o.form -= mag; }
+      else o.d++;
+    }
+    for(const id of (r.whiteIds||[])){
+      const o = get(id);
+      if(r.winner==='white'){ o.w++; o.form += mag; }
+      else if(r.winner==='red'){ o.l++; o.form -= mag; }
+      else o.d++;
+    }
   }
   records = m;
 }
@@ -499,7 +630,7 @@ const rating = p => p.skill + p.speed + endOf(p);      // overall strength, 3..1
 const ageOf  = p => (typeof p.age==='number' ? p.age : 3);   // age tier, 1..5
 const total  = arr => arr.reduce((t,p)=>t+rating(p),0);
 const ageTotal = arr => arr.reduce((t,p)=>t+ageOf(p),0);
-const formOf = p => { const r=records[p.id]; return r ? (r.w - r.l) : 0; };   // recent net wins
+const formOf = p => { const r=records[p.id]; return r ? r.form : 0; };   // margin-weighted recent form
 const formTotal = arr => arr.reduce((t,p)=>t+formOf(p),0);
 // combined imbalance: strength weighted heaviest, then age spread, then recent form
 function balanceCost(A,B){
@@ -525,9 +656,9 @@ function optimizeOutfield(A,B){
     improved = false;
     let cost = balanceCost(A,B);
     for(let i=0;i<A.length;i++){
-      if(A[i].position==='GK') continue;
+      if(A[i].position==='GK' || A[i].captain) continue;
       for(let j=0;j<B.length;j++){
-        if(B[j].position==='GK') continue;
+        if(B[j].position==='GK' || B[j].captain) continue;
         [A[i],B[j]] = [B[j],A[i]];            // try the swap
         const nc = balanceCost(A,B);
         if(nc < cost){ cost = nc; improved = true; }
@@ -539,12 +670,22 @@ function optimizeOutfield(A,B){
 
 function buildTeams(present){
   if(present.length < 2) return null;
-  const gks = present.filter(p=>p.position==='GK').sort((a,b)=>rating(b)-rating(a));
-  const out = present.filter(p=>p.position!=='GK');
+  const captains = present.filter(p=>p.captain);
+  const gks = present.filter(p=>p.position==='GK' && !p.captain).sort((a,b)=>rating(b)-rating(a));
+  const out = present.filter(p=>p.position!=='GK' && !p.captain);
   let best = null;
 
   for(let r=0;r<500;r++){
     const A=[], B=[], subs=[];
+    // captains go on opposite teams (never together)
+    const cflip = Math.random() < 0.5;
+    captains.forEach((c,i)=>{
+      const pref = (((i%2===0)!==cflip) ? A : B);
+      if(pref.length < CAP) pref.push(c);
+      else if(A.length < CAP) A.push(c);
+      else if(B.length < CAP) B.push(c);
+      else subs.push(c);
+    });
     const flip = Math.random() < 0.5;
     gks.forEach((g,i)=>{
       const pref = (((i%2===0)!==flip) ? A : B);
@@ -610,13 +751,14 @@ function renderRoster(){
     const rec = records[p.id];
     const recChip = (rec && (rec.w||rec.l||rec.d)) ? `<span class="rec" title="wins-losses-draws">${rec.w}-${rec.l}-${rec.d}</span>` : '';
     return `
-    <div class="pcard ${p.present?'in':'out'} ${p.sub?'is-sub':''}" data-id="${p.id}">
+    <div class="pcard ${p.present?'in':'out'} ${p.sub?'is-sub':''} ${p.captain?'is-capt':''}" data-id="${p.id}">
       <div class="prow">
         <button class="presence" data-act="present" aria-label="toggle attendance">
           <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </button>
         <span class="pname">${escapeHtml(p.name)}</span>
         ${recChip}
+        <button class="captog ${p.captain?'on':''}" data-act="captain" title="mark as captain (captains always on opposite teams)">C</button>
         <button class="edit" data-act="edit" title="edit name" aria-label="edit name">✎</button>
         <button class="subtog ${p.sub?'on':''}" data-act="subtog" title="mark as substitute">Sub</button>
         <button class="kill" data-act="kill" aria-label="remove">×</button>
@@ -638,6 +780,7 @@ function updateMatchState(){
   $('balanceBtn').disabled = !can;
   $('reshuffleBtn').disabled = !teams;
   $('prevBtn').disabled = !(history.length>0 && (idx>0 || teams===null));
+  $('saveLineupBtn').disabled = !teams;
   $('matchCount').textContent = can ? `${present.length} players` : '';
   if(teams) renderMatch();
 }
@@ -769,7 +912,57 @@ function resultLogHtml(){
         <button class="rl-btn white" data-result="white">White won</button>
       </div>
       ${recent ? `<div class="res-list"><div class="res-list-head">Recent results</div>${recent}</div>` : ''}
-    </div>`;
+    </div>
+    ${savedLineupsHtml()}`;
+}
+function savedLineupsHtml(){
+  if(!savedLineups.length) return '';
+  const rows = savedLineups.slice().reverse().map(s=>{
+    const na = (s.A||[]).length, nb = (s.B||[]).length, ns = (s.subs||[]).length;
+    const sub = ns ? ` · ${ns} sub${ns>1?'s':''}` : '';
+    return `<div class="sl-row">
+        <button class="sl-load" data-load-lineup="${s.id}" title="load this lineup">
+          <span class="sl-label">${escapeHtml(s.label||'Saved lineup')}</span>
+          <span class="sl-meta">${na} v ${nb}${sub}</span>
+        </button>
+        <button class="sl-del" data-del-lineup="${s.id}" title="delete">×</button>
+      </div>`;
+  }).join('');
+  return `<div class="saved-lineups"><div class="sl-head">Saved lineups</div>${rows}</div>`;
+}
+function saveCurrentLineup(){
+  if(!teams) return;
+  refreshCap();
+  const f = selectedField();
+  const when = teamsWhen || Date.now();
+  const d = new Date(when);
+  const mons=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateShort = `${mons[d.getMonth()]} ${d.getDate()}`;
+  const label = [dateShort, f && f.name, `${teams.A.length}v${teams.B.length}`].filter(Boolean).join(' · ');
+  savedLineups.push({ id:uid(), ts:Date.now(), when, label,
+    A:teams.A.map(p=>p.id), B:teams.B.map(p=>p.id), subs:(teams.subs||[]).map(p=>p.id) });
+  if(savedLineups.length > 20) savedLineups.shift();
+  saveSavedLineups();
+  renderMatch();
+}
+function loadSavedLineup(id){
+  const s = savedLineups.find(x=>x.id===id); if(!s) return;
+  const t = teamsFromSnap(s);
+  if(!t.A.length && !t.B.length && !(t.subs&&t.subs.length)) return;
+  teams = t;
+  if(typeof s.when==='number') teamsWhen = s.when;
+  history = history.slice(0, idx+1);
+  history.push(snapOf(teams));
+  if(history.length > 30) history.shift();
+  idx = history.length - 1;
+  saveTeamsState();
+  renderMatch(); updateMatchState();
+  if(window.innerWidth <= 760) setView('match');
+}
+function deleteSavedLineup(id){
+  savedLineups = savedLineups.filter(x=>x.id!==id);
+  saveSavedLineups();
+  renderMatch();
 }
 function logResult(winner){
   if(!teams) return;
@@ -799,7 +992,7 @@ function teamCard(cls,label,arr,tot,avg){
   const rows=[...arr].sort((a,b)=> order[a.position]-order[b.position] || rating(b)-rating(a)).map(p=>`
     <div class="slot" data-id="${p.id}" title="tap to move to the other side">
       <span class="ptag ${p.position}">${p.position}</span>
-      <span class="slot-name">${escapeHtml(p.name)}</span>
+      <span class="slot-name">${p.captain?'<span class="capt-mark" title="captain">C</span> ':''}${escapeHtml(p.name)}</span>
       <span class="swap">⇄</span>
     </div>`).join('');
   const fm = suggestFormation(arr);
@@ -817,14 +1010,14 @@ function teamCard(cls,label,arr,tot,avg){
 /* ---------------- actions ---------------- */
 function addPlayer(name){
   name=name.trim(); if(!name) return;
-  players.push({ id:uid(), name, skill:3, speed:3, endurance:3, age:3, position:'MID', present:true });
+  players.push({ id:uid(), name, skill:3, speed:3, endurance:3, age:3, position:'MID', present:true, captain:isDefaultCaptain(name) });
   save(players); renderRoster();
 }
 function loadRegulars(){
   const have = new Set(players.map(p=>p.name.trim().toLowerCase()));
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase()))
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
   });
   save(players); renderRoster();
 }
@@ -860,7 +1053,7 @@ function loadAll(){
   const have = new Set(players.map(p=>p.name.trim().toLowerCase()));
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase()))
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
   });
   players.forEach(p=>p.present=true);
   save(players); renderRoster();
@@ -881,6 +1074,7 @@ function commitCurrent(){                    // save manual tweaks into the curr
 }
 
 function doBalance(){
+  refreshCap();
   const present = players.filter(p=>p.present);
   saveLastPicked(present.map(p=>p.name));   // remember this squad for "Load Regular"
   const designated = present.filter(p=>p.sub);      // flagged as subs in the roster
@@ -916,6 +1110,8 @@ function moveAcross(id){
   if(teams.A.some(p=>p.id===id)){ from=teams.A; to=teams.B; }
   else if(teams.B.some(p=>p.id===id)){ from=teams.B; to=teams.A; }
   else return;
+  const mover = from.find(x=>x.id===id);
+  if(mover && mover.captain && to.some(x=>x.captain)){ return; }   // never put two captains together
   const p = from.splice(from.findIndex(x=>x.id===id),1)[0];
   if(to.length >= CAP){                      // keep the 12-cap: bench the weakest outfielder on the receiving side
     const of = to.map((q,i)=>[i,q]).filter(x=>x[1].position!=='GK');
@@ -930,19 +1126,28 @@ function moveAcross(id){
   commitCurrent(); renderMatch(); updateMatchState();
 }
 
+// teams a player may join without putting two captains together
+function captainSafeTeams(p){
+  if(!p.captain) return [teams.A, teams.B];
+  const res = [];
+  if(!teams.A.some(x=>x.captain && x.id!==p.id)) res.push(teams.A);
+  if(!teams.B.some(x=>x.captain && x.id!==p.id)) res.push(teams.B);
+  return res.length ? res : [teams.A, teams.B];
+}
+
 function subIn(id){                          // rotate a sub onto the field
   if(!teams || !teams.subs) return;
   const si = teams.subs.findIndex(p=>p.id===id); if(si<0) return;
   const sub = teams.subs[si];
-  const target = teams.A.length <= teams.B.length ? teams.A : teams.B;
-  if(target.length < CAP){
-    teams.subs.splice(si,1); target.push(sub);
-  } else {                                   // both sides full: swap sub for the weakest outfielder
-    const pool = [...teams.A.map(p=>['A',p]), ...teams.B.map(p=>['B',p])].filter(x=>x[1].position!=='GK');
+  const allowed = captainSafeTeams(sub);
+  const open = allowed.filter(t=>t.length < CAP).sort((a,b)=>a.length-b.length);
+  if(open.length){
+    teams.subs.splice(si,1); open[0].push(sub);
+  } else {                                   // allowed sides full: swap for weakest non-captain outfielder
+    const pool = allowed.flatMap(t=>t.map(p=>[t,p])).filter(x=>x[1].position!=='GK' && !x[1].captain);
     if(!pool.length) return;
     pool.sort((a,b)=>rating(a[1])-rating(b[1]));
-    const [side,weak] = pool[0];
-    const arr = side==='A' ? teams.A : teams.B;
+    const [arr,weak] = pool[0];
     arr.splice(arr.findIndex(p=>p.id===weak.id),1);
     arr.push(sub);
     teams.subs.splice(si,1);
@@ -965,11 +1170,11 @@ function applySub(p){
     rm(teams.subs);
     teams.subs.push(p);
     if(wasStarter){
-      // keep even numbers: bring a waiting (non-flagged) sub onto the short side
+      // keep even numbers: bring a waiting (non-flagged, non-captain) sub onto the short side
       const short = teams.A.length < teams.B.length ? teams.A
                   : teams.B.length < teams.A.length ? teams.B : null;
       if(short && short.length < CAP){
-        const cand = teams.subs.filter(s=>s.id!==p.id && !s.sub);
+        const cand = teams.subs.filter(s=>s.id!==p.id && !s.sub && !s.captain);
         if(cand.length){
           cand.sort((a,b)=>rating(b)-rating(a));
           const pick = cand[0];
@@ -982,19 +1187,19 @@ function applySub(p){
   } else {
     rm(teams.subs);
     if(!teams.A.some(x=>x.id===p.id) && !teams.B.some(x=>x.id===p.id)){
-      const target = teams.A.length <= teams.B.length ? teams.A : teams.B;
-      if(target.length < CAP){
-        target.push(p);
-      } else {                               // both full: swap the weakest outfielder to the bench
-        const pool = [...teams.A.map(q=>['A',q]), ...teams.B.map(q=>['B',q])].filter(x=>x[1].position!=='GK');
-        pool.sort((a,b)=>rating(a[1])-rating(b[1]));
+      const allowed = captainSafeTeams(p);
+      const open = allowed.filter(t=>t.length < CAP).sort((a,b)=>a.length-b.length);
+      if(open.length){
+        open[0].push(p);
+      } else {                               // allowed sides full: swap the weakest non-captain outfielder to bench
+        const pool = allowed.flatMap(t=>t.map(q=>[t,q])).filter(x=>x[1].position!=='GK' && !x[1].captain);
         if(pool.length){
-          const [side,weak] = pool[0];
-          const arr = side==='A' ? teams.A : teams.B;
+          pool.sort((a,b)=>rating(a[1])-rating(b[1]));
+          const [arr,weak] = pool[0];
           arr.splice(arr.findIndex(x=>x.id===weak.id),1);
           arr.push(p);
           teams.subs.push(weak);
-        } else target.push(p);
+        } else (teams.A.length<=teams.B.length?teams.A:teams.B).push(p);
       }
       optimizeOutfield(teams.A, teams.B);
     }
@@ -1020,6 +1225,10 @@ function renderFieldSelect(){
   $('venueField').value = f ? f.name : '';
   $('venueAddr').value  = f ? f.address : '';
   $('fieldDelBtn').disabled = !f;
+  // reflect per-side size toggle
+  const size = f ? DEFAULT_SIZE(f) : 12;
+  document.querySelectorAll('.vs-opt').forEach(b=> b.classList.toggle('on', +b.dataset.size===size));
+  refreshCap();
 }
 
 /* ---------- game day/time (next SABR session) ---------- */
@@ -1074,18 +1283,28 @@ function renderMatchVenue(){
   }
   const q = ((f.name||'') + ' ' + (f.address||'')).trim();
   const href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+  const size = DEFAULT_SIZE(f);
   box.innerHTML = `
     <span class="mv-pin">📍</span>
     <div class="mv-text">
       <b>${escapeHtml(f.name || 'Field')}</b>
       ${f.address ? `<a class="mv-addr" href="${href}" target="_blank" rel="noopener">${escapeHtml(f.address)}</a>` : ''}
-    </div>`;
+    </div>
+    <span class="mv-size">${size} v ${size}</span>`;
   box.classList.add('show');
 }
 
 $('fieldSelect').addEventListener('change', ()=>{
   selectedFieldId = $('fieldSelect').value || null;
   saveFields(); renderFieldSelect(); renderMatchVenue();
+});
+document.querySelectorAll('.vs-opt').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    let f = selectedField();
+    if(!f){ f = { id:uid(), name:'', address:'' }; fields.push(f); selectedFieldId = f.id; }
+    f.size = +btn.dataset.size;
+    saveFields(); renderFieldSelect(); renderMatchVenue();
+  });
 });
 $('fieldNewBtn').onclick = ()=>{
   const f = { id:uid(), name:'', address:'' };
@@ -1117,9 +1336,11 @@ $('nameInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addPlayer($
 $('loadAllBtn').onclick = loadAll;
 $('loadRegularBtn').onclick = loadRegular;
 $('clearAttBtn').onclick = ()=>{ players.forEach(p=>{p.present=false; p.sub=false;}); teams=null; save(players); renderRoster(); renderMatch(); };
+$('syncRsvpBtn').onclick = syncRSVPs;
 $('balanceBtn').onclick = doBalance;
 $('reshuffleBtn').onclick = doBalance;
 $('prevBtn').onclick = goPrev;
+$('saveLineupBtn').onclick = saveCurrentLineup;
 
 $('rosterList').addEventListener('click', e=>{
   const card=e.target.closest('.pcard'); if(!card) return;
@@ -1129,6 +1350,7 @@ $('rosterList').addEventListener('click', e=>{
   if(act==='edit'){ startEditName(card, p); return; }
   if(act==='present') p.present=!p.present;
   else if(act==='subtog'){ p.sub=!p.sub; if(p.sub) p.present=true; if(teams) applySub(p); }
+  else if(act==='captain'){ p.captain=!p.captain; }
   else if(act==='kill') players=players.filter(x=>x.id!==p.id);
   else if(act==='pos') p.position=ctrl.dataset.pos;
   else if(act==='skill') p.skill=+ctrl.dataset.val;
@@ -1141,6 +1363,8 @@ $('rosterList').addEventListener('click', e=>{
 $('matchBody').addEventListener('click', e=>{
   const res=e.target.closest('[data-result]'); if(res){ logResult(res.dataset.result); return; }
   const un=e.target.closest('[data-undo]'); if(un){ undoLastResult(); return; }
+  const ld=e.target.closest('[data-load-lineup]'); if(ld){ loadSavedLineup(ld.dataset.loadLineup); return; }
+  const dl=e.target.closest('[data-del-lineup]'); if(dl){ deleteSavedLineup(dl.dataset.delLineup); return; }
   const chip=e.target.closest('.sub-chip'); if(chip){ subIn(chip.dataset.sub); return; }
   const slot=e.target.closest('.slot'); if(slot) moveAcross(slot.dataset.id);
 });
@@ -1207,6 +1431,7 @@ window.addEventListener('scroll', hideTip, true);
     if(!POSITIONS.includes(p.position)) p.position = p.gk ? 'GK' : 'MID';
     if(typeof p.present !== 'boolean') p.present = false;
     if(typeof p.sub !== 'boolean') p.sub = false;
+    if(typeof p.captain !== 'boolean') p.captain = isDefaultCaptain(p.name);
     delete p.gk;
   });
   // auto-add any regulars missing from the saved roster (e.g. newly added names)
@@ -1214,12 +1439,13 @@ window.addEventListener('scroll', hideTip, true);
   let added = false;
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase())){
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
       added = true;
     }
   });
   if(added) save(players);
   results = await loadResults();
+  savedLineups = await loadSavedLineups();
   recomputeRecords();
   renderRoster();
 
