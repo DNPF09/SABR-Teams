@@ -476,11 +476,42 @@ async function publishField(){
   // shared roster (id+name) so name edits on RSVP can sync back by id
   rows.push({ session:'__config__', name:'__ROSTER__', status: JSON.stringify(players.map(p=>({id:p.id, name:p.name}))) });
   rows.push({ session:'__config__', name:'__ROSTERVER__', status: JSON.stringify(ROSTER_VERSION) });
+  // player ratings, keyed by name so they survive resets, re-uploads and new devices
+  const ratings = {};
+  players.forEach(p=>{ ratings[p.name.trim().toLowerCase()] =
+    { skill:p.skill, speed:p.speed, endurance:p.endurance, age:p.age, position:p.position, captain:!!p.captain }; });
+  rows.push({ session:'__config__', name:'__RATINGS__', status: JSON.stringify(ratings) });
   try{
     await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
       body: JSON.stringify(rows)});
   }catch(e){}
+}
+
+// restore saved ratings from the database (matched by name) so they're never lost
+async function applySharedRatings(){
+  if(!SB_ON) return false;
+  let changed = false;
+  try{
+    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=eq.__RATINGS__&select=status`, {headers: sbHeaders()});
+    const arr = await res.json();
+    let map = null;
+    if(arr && arr[0] && arr[0].status){ try{ map = JSON.parse(arr[0].status); }catch(e){} }
+    if(map && typeof map==='object'){
+      players.forEach(p=>{
+        const r = map[p.name.trim().toLowerCase()];
+        const unrated = p.skill===3 && p.speed===3 && p.endurance===3 && p.age===3 && p.position==='MID' && !p.captain;
+        if(r && unrated){                       // only fill players that are still at defaults
+          p.skill=+r.skill||3; p.speed=+r.speed||3; p.endurance=+r.endurance||3; p.age=+r.age||3;
+          if(POSITIONS.includes(r.position)) p.position=r.position;
+          p.captain=!!r.captain;
+          changed=true;
+        }
+      });
+    }
+  }catch(e){}
+  if(changed) save(players);
+  return changed;
 }
 
 // pull names edited on the RSVP page, merge into SIDES (fields load authoritatively above)
@@ -1501,13 +1532,14 @@ $('rosterList').addEventListener('click', e=>{
   else if(act==='subtog'){ p.sub=!p.sub; if(p.sub) p.present=true; if(teams) applySub(p); }
   else if(act==='captain'){ p.captain=!p.captain; }
   else if(act==='kill') players=players.filter(x=>x.id!==p.id);
-  else if(act==='pos'){ p.position=ctrl.dataset.pos; publishField(); }
+  else if(act==='pos'){ p.position=ctrl.dataset.pos; }
   else if(act==='skill') p.skill=+ctrl.dataset.val;
   else if(act==='speed') p.speed=+ctrl.dataset.val;
   else if(act==='endurance') p.endurance=+ctrl.dataset.val;
   else if(act==='age') p.age=+ctrl.dataset.val;
   else return;
   save(players); renderRoster();
+  if(act!=='present' && act!=='subtog') publishField();   // save ratings/roster changes to the DB
 });
 $('matchBody').addEventListener('click', e=>{
   const res=e.target.closest('[data-result]'); if(res){ logResult(res.dataset.result); return; }
@@ -1610,6 +1642,7 @@ window.addEventListener('scroll', hideTip, true);
     }
   });
   if(added) save(players);
+  await applySharedRatings();      // recover any saved ratings (by name) so they're never lost
   results = await loadResults();
   savedLineups = await loadSavedLineups();
   recomputeRecords();
