@@ -48,6 +48,11 @@
   .flock-row label{width:38px;font-size:12px;font-weight:700;color:var(--chalk);}
   .flock-row select{flex:1;background:var(--pitch);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:9px 11px;font-family:'Inter';font-size:14px;outline:none;}
   .flock-add{margin-top:2px;background:transparent;border:1px dashed var(--muted-2);color:var(--muted);border-radius:8px;padding:8px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;}
+  .flock-list{display:flex;flex-direction:column;gap:5px;}
+  .flock-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--chalk);background:var(--pitch);border:1px solid var(--line);border-radius:8px;padding:7px 10px;}
+  .flock-item span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .flock-del{background:transparent;border:0;color:var(--muted-2);font-size:15px;cursor:pointer;padding:0 2px;}
+  .flock-del:hover{color:var(--red);}
   .flock-add:hover{color:var(--chalk);border-color:var(--muted);}
   .flock-form{flex-direction:column;gap:8px;margin-top:2px;}
   .flock-form input{background:var(--pitch);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:9px 11px;font-family:'Inter';font-size:14px;outline:none;}
@@ -362,6 +367,8 @@ function renderFieldLock(){
     <div class="flock-h">Fields <span>lock which field is used each day</span></div>
     <div class="flock-row"><label>Wed</label><select id="wedField">${opts('W')}</select></div>
     <div class="flock-row"><label>Sat</label><select id="satField">${opts('S')}</select></div>
+    ${FIELDLIST.length?`<div class="flock-list">${FIELDLIST.map(f=>
+      `<div class="flock-item"><span>${esc(f.name||'Untitled')} · ${f.size} v ${f.size}</span><button class="flock-del" data-del="${esc(f.name)}" title="remove field">✕</button></div>`).join('')}</div>`:''}
     <button id="addFieldBtn" class="flock-add">+ Add field</button>
     <div id="addFieldForm" class="flock-form" style="display:none">
       <input id="afName" type="text" placeholder="Field name" autocomplete="off">
@@ -374,6 +381,13 @@ function renderFieldLock(){
   box.classList.add('show');
   $('wedField').onchange = ()=>{ DAYLOCK.W = $('wedField').value || null; saveDayLock(); render(); };
   $('satField').onchange = ()=>{ DAYLOCK.S = $('satField').value || null; saveDayLock(); render(); };
+  box.querySelectorAll('.flock-del').forEach(b=> b.onclick = async ()=>{
+    const nm=b.dataset.del;
+    FIELDLIST = FIELDLIST.filter(f=>f.name!==nm);
+    if(DAYLOCK.W===nm) DAYLOCK.W=null;
+    if(DAYLOCK.S===nm) DAYLOCK.S=null;
+    await saveFieldList(); await saveDayLock(); render();
+  });
   let afSize = 11;
   $('addFieldBtn').onclick = ()=>{ $('addFieldForm').style.display='flex'; $('addFieldBtn').style.display='none'; $('afName').focus(); };
   $('afCancel').onclick = ()=>{ $('addFieldForm').style.display='none'; $('addFieldBtn').style.display='block'; };

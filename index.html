@@ -456,27 +456,21 @@ async function publishField(){
   }catch(e){}
 }
 
-// pull fields added and names edited on the RSVP page, merge into SIDES
+// pull names edited on the RSVP page, merge into SIDES (fields load authoritatively above)
 async function pullSharedConfig(){
   if(!SB_ON) return false;
   let changed = false;
   try{
-    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=in.(%22__FIELDS__%22,%22__ROSTER__%22)&select=name,status`, {headers: sbHeaders()});
+    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=eq.%22__ROSTER__%22&select=name,status`, {headers: sbHeaders()});
     const arr = await res.json();
-    const map = {}; (arr||[]).forEach(r=>{ try{ map[r.name]=JSON.parse(r.status); }catch(e){} });
-    const sf = map['__FIELDS__'];
-    if(Array.isArray(sf)){
-      const have = new Set(fields.map(f=>(f.name||'').trim().toLowerCase()));
-      sf.forEach(f=>{ const nm=(f.name||'').trim();
-        if(nm && !have.has(nm.toLowerCase())){ fields.push({ id:uid(), name:nm, address:f.address||'', size:f.size }); changed=true; } });
-    }
-    const sr = map['__ROSTER__'];
+    let sr = null;
+    (arr||[]).forEach(r=>{ if(r.name==='__ROSTER__'){ try{ sr=JSON.parse(r.status); }catch(e){} } });
     if(Array.isArray(sr)){
       const byId = new Map(players.map(p=>[p.id,p]));
       sr.forEach(r=>{ const p=byId.get(r.id); if(p && r.name && p.name!==r.name){ p.name=r.name; changed=true; } });
     }
   }catch(e){}
-  if(changed){ saveFields(); save(players); }
+  if(changed){ save(players); }
   return changed;
 }
 
@@ -551,6 +545,21 @@ async function saveFields(){
   try{ localStorage.setItem(FIELDS_KEY, json); }catch(e){}
 }
 async function loadFields(){
+  // shared field list (from Supabase) is the source of truth when connected,
+  // so fields added/removed on RSVP (or another device) are reflected here
+  if(SB_ON){
+    try{
+      const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=eq.__FIELDS__&select=status`, {headers: sbHeaders()});
+      const rows = await res.json();
+      if(rows && rows[0] && rows[0].status){
+        const shared = JSON.parse(rows[0].status);
+        if(Array.isArray(shared)){
+          const flds = shared.map(f=>({ id:uid(), name:f.name||'', address:f.address||'', size:f.size }));
+          return { fields: flds, selectedFieldId: flds.length ? flds[0].id : null };
+        }
+      }
+    }catch(e){}
+  }
   let data = null;
   try{
     if(window.storage && window.storage.get){
