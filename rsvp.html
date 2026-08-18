@@ -156,6 +156,7 @@ const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
    and picking more than one player. Change this to your own. (It's visible in the
    page source, so it's a light gate for a trusted group, not real security.) */
 const ADMIN_PW = 'sabr-admin';
+const ROSTER_VERSION = '2026-registration';   // must match SIDES; shows the new roster
 let ADMIN = false;
 function sbHeaders(extra){
   const h = { apikey: SUPABASE_ANON_KEY };
@@ -166,17 +167,24 @@ function sbHeaders(extra){
 
 /* Roster — the names players choose from */
 const ROSTER = [
-  "Adrian Minor","Alan Davalos","Alfredo Aletto","Anthony Lombardo","Armando","Bill","Bruce",
-  "Carlos Acero","Carlos Bustamante","Carlos Olivera","Carlos Romero","Cezar Fernandez","Coco",
-  "David Moss","Duarte Pereira","Edwin Ecua","Edwin Salazar","Elmer Reyes","Elmer Ribeiro",
-  "Enrique Cocha","Eric Salameh","Felipe Santo","Fernando Dennis","Freddy","Gino Santi",
-  "Guillermo Campos","Hans Kuhlmann","Jadson","Jaime Cardenas","Jaime Guarin","Joe","John Prokos",
-  "Jorg Gomolka","Jorge","Jorje Torrejon","Jose Antonio","Jose del Carpio","Jose Rey","Juan Montoya",
-  "Justin Mango","Kevin","Manolo","Marcelo","Mariano","Mario Selman","Mauricio Ortiz","Mauricio Plata",
-  "Messy","Metin","Michael Seward","Moishe Mana","Moshe P.","Nelson","Ozzy","Pierre","Pupi","Rafael",
-  "Ricardo","Rolf","Rudy","Sean","Sydney","Tino","Vicente","Wilvens","Yeso","Yumar"];
+  "Adam Freeman", "Adrian Minor", "Alan Davalos", "Alfredo Aletto", "Ant Lombardo",
+  "Armando Rivera", "Bill Neway", "Bruce Spidell", "Carlos Acero", "Carlos Bustamante",
+  "Carlos Olivera", "Carlos Romero", "Cesar Fernandez", "Changsheng Zhao (Sean)", "Daniel Lavalle",
+  "David Moss", "Duarte Pereira", "Edwin Aspiazu", "Edwin Salazar", "Elmer Reyes",
+  "Elmer Ribeiro", "Enrique Concha", "Eric Love", "Felipe Santofimio", "Ferdinando De Matthaeis",
+  "Fernando Dennis", "Gino Santi", "Guillermo Campos", "Hans Kuhlmann", "Jadson Campos",
+  "Jaime Cardenas", "Jaime Guarin", "Joe M Cuschieri", "Joerg Gomolka", "John Prokos",
+  "Jorge Luyo", "Jorge Novoa", "Jorge Torrejon", "Jose A Bazan", "Jose Del Carpio",
+  "Jose Rey", "Juan Montoya", "Justin Mango", "Kevin McCluskey", "Manuel Salcedo",
+  "Marcelo Sicuro", "Mariano Faresi", "Mario Selman", "Martin Echevarria", "Mauricio Ortiz",
+  "Mauricio Plata", "Metin Altay", "Michael Seward", "Moishe Mana", "Moshe Peress",
+  "Nelson Buitrago", "Oguz Demir", "Paulo Schneider", "Pierre Gaudry", "Rafael Cristian",
+  "Ricardo Correa", "Rodolfo Carrillo", "Rolf Heinemann", "Sydney McCausland", "Vicente Arias",
+  "Wilvens Estaing", "Yessid Ortiz", "Yumar Labrador"
+];
 
 const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const esc = s => s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- schedule (America/New_York) ----------
@@ -307,11 +315,15 @@ async function saveDayLock(){
       body: JSON.stringify({session:CFG, name:'__DAYLOCK__', status:JSON.stringify(DAYLOCK), updated:new Date().toISOString()})});
   }catch(e){}
 }
-// pickable roster (from SIDES, with ids so name edits sync back); falls back to the built-in list
+// pickable roster (from SIDES, with ids so name edits sync back); falls back to the built-in list.
+// only trust the shared roster when its version matches — otherwise show the new built-in names.
 async function loadRoster(){
   if(SHARED){
-    const r = await loadConfig('__ROSTER__');
-    if(Array.isArray(r) && r.length) return r.map(x=>({ id:x.id||null, name:x.name }));
+    const ver = await loadConfig('__ROSTERVER__');
+    if(ver === ROSTER_VERSION){
+      const r = await loadConfig('__ROSTER__');
+      if(Array.isArray(r) && r.length) return r.map(x=>({ id:x.id||null, name:x.name }));
+    }
   }
   return ROSTER.map(n=>({ id:null, name:n }));
 }
@@ -320,7 +332,10 @@ async function saveRoster(){
   try{
     await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
-      body: JSON.stringify({session:CFG, name:'__ROSTER__', status:JSON.stringify(PLAYERS), updated:new Date().toISOString()})});
+      body: JSON.stringify([
+        {session:CFG, name:'__ROSTER__', status:JSON.stringify(PLAYERS), updated:new Date().toISOString()},
+        {session:CFG, name:'__ROSTERVER__', status:JSON.stringify(ROSTER_VERSION), updated:new Date().toISOString()}
+      ])});
   }catch(e){}
 }
 async function saveFieldList(){
@@ -426,6 +441,24 @@ function renderStatus(){
 }
 function renderBody(){
   const body=$('body');
+  const addPlayerHtml = () => ADMIN ? `
+    <div class="admin-tools">
+      <button id="addPlayerBtn" class="flock-add">+ Add player</button>
+      <div id="addPlayerForm" class="flock-form" style="display:none">
+        <input id="apName" type="text" placeholder="New player name" autocomplete="off">
+        <div class="af-actions"><button id="apSave">Add player</button><button id="apCancel" class="ghost">Cancel</button></div>
+      </div>
+    </div>` : '';
+  const wireAddPlayer = () => {
+    const b=$('addPlayerBtn'); if(!b) return;
+    b.onclick=()=>{ $('addPlayerForm').style.display='flex'; b.style.display='none'; $('apName').focus(); };
+    $('apCancel').onclick=()=>{ $('addPlayerForm').style.display='none'; b.style.display='block'; };
+    const save=async ()=>{ const nm=$('apName').value.trim(); if(!nm) return;
+      if(!PLAYERS.some(p=>(p.name||'').trim().toLowerCase()===nm.toLowerCase())) PLAYERS.push({id:uid(), name:nm});
+      await saveRoster(); render(); };
+    $('apSave').onclick=save;
+    $('apName').onkeydown=e=>{ if(e.key==='Enter') save(); };
+  };
   if(!SESSION.isOpen){
     if(ADMIN){
       // roster name editor is available to admin even when sign-up is closed
@@ -434,6 +467,7 @@ function renderBody(){
       const shown=f?list.filter(p=>p.name.toLowerCase().includes(f)):list;
       body.innerHTML=`
         <div class="hint">Admin — edit player names below (syncs to the app). Sign-up opens ${fmt(SESSION.open,false)}.</div>
+        ${addPlayerHtml()}
         <input class="search" id="search" type="text" placeholder="Search name…" autocomplete="off" value="${esc(FILTER)}">
         <div class="list">
           ${shown.map(p=>{
@@ -444,6 +478,7 @@ function renderBody(){
           }).join('')}
         </div>`;
       $('refreshBtn').style.display=SHARED?'block':'none';
+      wireAddPlayer();
       const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
       const ei=$('editIn'); if(ei){ ei.focus(); ei.select();
         ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } }; }
@@ -470,6 +505,7 @@ function renderBody(){
     <div class="count"><b>${INORDER.length}</b><span>in · ${st.starting.length} starting · ${st.subs.length} sub${st.subs.length===1?'':'s'}</span></div>
     <div class="hint">${hint}</div>
     ${meNote}
+    ${addPlayerHtml()}
     ${st.starting.length?`<div class="grp"><div class="grp-h start">Starting · ${st.starting.length}/${st.cap2}</div><div class="chips">${st.starting.map(chip).join('')}</div></div>`:''}
     ${st.subs.length?`<div class="grp"><div class="grp-h sub">Subs · ${st.subs.length}</div><div class="chips">${st.subs.map(chip).join('')}</div></div>`:''}
     <input class="search" id="search" type="text" placeholder="Search your name…" autocomplete="off" value="${esc(FILTER)}">
@@ -492,6 +528,7 @@ function renderBody(){
       }).join('')}
     </div>`;
   $('refreshBtn').style.display = SHARED ? 'block' : 'none';
+  wireAddPlayer();
   const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
   const ei=$('editIn'); if(ei){ ei.focus(); ei.select();
     ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } };

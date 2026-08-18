@@ -95,6 +95,8 @@
 
   .toolbar{display:flex;gap:8px;margin-bottom:16px;}
   .rsvp-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .backup-row{display:flex;gap:8px;margin-bottom:16px;}
+  .backup-row .btn-ghost{flex:1;}
   .btn-rsvp{flex:1;background:rgba(95,168,224,.14);border:1px solid rgba(95,168,224,.4);color:var(--def);
     border-radius:10px;padding:11px;font-family:'Inter';font-weight:700;font-size:14px;cursor:pointer;transition:background .12s;}
   .btn-rsvp:hover{background:rgba(95,168,224,.22);}
@@ -308,7 +310,6 @@
           <button id="fieldNewBtn" class="field-btn" title="add a new field">＋</button>
           <button id="fieldDelBtn" class="field-btn" title="remove this field">🗑</button>
         </div>
-        <input id="venueField" type="text" placeholder="⚽  Field / venue name" autocomplete="off" enterkeyhint="done">
         <div class="venue-addr-row">
           <input id="venueAddr" type="text" placeholder="Address" autocomplete="off" enterkeyhint="done">
         </div>
@@ -332,6 +333,11 @@
       <div class="rsvp-row">
         <button class="btn-rsvp" id="syncRsvpBtn">⤓ Sync RSVPs</button>
         <a class="rsvp-link" href="rsvp.html" target="_blank" rel="noopener">Open RSVP page ↗</a>
+      </div>
+      <div class="backup-row">
+        <button class="btn-ghost" id="backupBtn" title="download all players, ratings, results & fields to a file">⬇ Backup</button>
+        <button class="btn-ghost" id="restoreBtn" title="restore from a backup file">⬆ Restore</button>
+        <input type="file" id="restoreInput" accept="application/json,.json" style="display:none">
       </div>
       <div class="roster" id="rosterList"></div>
     </section>
@@ -398,6 +404,26 @@ async function syncRSVPs(){
   }catch(e){
     btn.disabled=false; flashBtn(btn, 'Sync failed', orig); return;
   }
+  // sync the field (name + address + size) locked for this day on the RSVP page
+  let fieldMsg = '';
+  try{
+    const cfg = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=in.(%22__FIELDS__%22,%22__DAYLOCK__%22)&select=name,status`, {headers: sbHeaders()});
+    const rows = await cfg.json();
+    const map = {}; (rows||[]).forEach(r=>{ try{ map[r.name]=JSON.parse(r.status); }catch(e){} });
+    if(Array.isArray(map['__FIELDS__'])){
+      fields = map['__FIELDS__'].map(x=>({ id:uid(), name:x.name||'', address:x.address||'', size:x.size }));
+    }
+    const lock = map['__DAYLOCK__'];
+    const day = rsvpSessionKey().slice(-1);   // 'W' or 'S'
+    if(lock && lock[day]){
+      const f = fields.find(x=>(x.name||'').trim().toLowerCase()===String(lock[day]).trim().toLowerCase());
+      if(f){ selectedFieldId = f.id; fieldMsg = ' · ' + (f.name||''); }
+    } else if(fields.length && !fields.find(x=>x.id===selectedFieldId)){
+      selectedFieldId = fields[0].id;
+    }
+    saveFields(); renderFieldSelect(); renderMatchVenue();
+  }catch(e){}
+
   // starting = first (size*2) to sign in, keepers always start; the rest are subs
   refreshCap();
   const cap2 = CAP * 2;
@@ -424,7 +450,7 @@ async function syncRSVPs(){
   });
   save(players); renderRoster();
   btn.disabled = false;
-  flashBtn(btn, `✓ ${nStart} starting · ${nSub} sub${nSub===1?'':'s'}`, orig);
+  flashBtn(btn, `✓ ${nStart} starting · ${nSub} sub${nSub===1?'':'s'}${fieldMsg}`, orig);
 }
 function flashBtn(btn, msg, revertTo){
   if(!btn) return;
@@ -449,6 +475,7 @@ async function publishField(){
   rows.push({ session:'__config__', name:'__FIELDS__', status: JSON.stringify(list) });
   // shared roster (id+name) so name edits on RSVP can sync back by id
   rows.push({ session:'__config__', name:'__ROSTER__', status: JSON.stringify(players.map(p=>({id:p.id, name:p.name}))) });
+  rows.push({ session:'__config__', name:'__ROSTERVER__', status: JSON.stringify(ROSTER_VERSION) });
   try{
     await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
@@ -467,7 +494,16 @@ async function pullSharedConfig(){
     (arr||[]).forEach(r=>{ if(r.name==='__ROSTER__'){ try{ sr=JSON.parse(r.status); }catch(e){} } });
     if(Array.isArray(sr)){
       const byId = new Map(players.map(p=>[p.id,p]));
-      sr.forEach(r=>{ const p=byId.get(r.id); if(p && r.name && p.name!==r.name){ p.name=r.name; changed=true; } });
+      sr.forEach(r=>{
+        if(!r || !r.id || !r.name) return;
+        const p = byId.get(r.id);
+        if(p){ if(p.name!==r.name){ p.name=r.name; changed=true; } }        // renamed on RSVP
+        else {                                                              // new player added on RSVP
+          players.push({ id:r.id, name:r.name, skill:3, speed:3, endurance:3, age:3,
+            position:'MID', present:false, sub:false, captain:isDefaultCaptain(r.name) });
+          changed=true;
+        }
+      });
     }
   }catch(e){}
   if(changed){ save(players); }
@@ -617,7 +653,8 @@ let CAP = 12;       // max players per side; set from the selected field's size
 const DEFAULT_SIZE = f => (f && typeof f.size==='number') ? f.size : (/el\s*rio/i.test(f && f.name || '') ? 11 : 12);
 function refreshCap(){ const f = (typeof selectedField==='function') ? selectedField() : null; CAP = f ? DEFAULT_SIZE(f) : 12; }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const DEFAULT_CAPTAINS = ['carlos olivera','armando'];
+const DEFAULT_CAPTAINS = ['carlos olivera','armando rivera'];
+const ROSTER_VERSION = '2026-registration';
 const isDefaultCaptain = name => DEFAULT_CAPTAINS.includes((name||'').trim().toLowerCase());
 
 /* game results — logged per match, persisted; per-player W/L/D is derived from them */
@@ -686,23 +723,21 @@ const teamsFromSnap = s => ({
 });
 
 const REGULARS = [
-  "Adrian Minor","Alan Davalos","Alfredo Aletto","Anthony Lombardo",
-  "Armando","Bill","Bruce","Carlos Acero",
-  "Carlos Bustamante","Carlos Olivera","Carlos Romero","Cezar Fernandez",
-  "Coco","David Moss","Duarte Pereira","Edwin Ecua",
-  "Edwin Salazar","Elmer Reyes","Elmer Ribeiro","Enrique Cocha",
-  "Eric Salameh","Felipe Santo","Fernando Dennis","Freddy",
-  "Gino Santi","Guillermo Campos","Hans Kuhlmann","Jadson",
-  "Jaime Cardenas","Jaime Guarin","Joe","John Prokos",
-  "Jorg Gomolka","Jorge","Jorje Torrejon","Jose Antonio",
-  "Jose del Carpio","Jose Rey","Juan Montoya","Justin Mango",
-  "Kevin","Manolo","Marcelo","Mariano",
-  "Mario Selman","Mauricio Ortiz","Mauricio Plata","Messy",
-  "Metin","Michael Seward","Moishe Mana","Moshe P.",
-  "Nelson","Ozzy","Pierre","Pupi",
-  "Rafael","Ricardo","Rolf","Rudy",
-  "Sean","Sydney","Tino","Vicente",
-  "Wilvens","Yeso","Yumar"];
+  "Adam Freeman", "Adrian Minor", "Alan Davalos", "Alfredo Aletto", "Ant Lombardo",
+  "Armando Rivera", "Bill Neway", "Bruce Spidell", "Carlos Acero", "Carlos Bustamante",
+  "Carlos Olivera", "Carlos Romero", "Cesar Fernandez", "Changsheng Zhao (Sean)", "Daniel Lavalle",
+  "David Moss", "Duarte Pereira", "Edwin Aspiazu", "Edwin Salazar", "Elmer Reyes",
+  "Elmer Ribeiro", "Enrique Concha", "Eric Love", "Felipe Santofimio", "Ferdinando De Matthaeis",
+  "Fernando Dennis", "Gino Santi", "Guillermo Campos", "Hans Kuhlmann", "Jadson Campos",
+  "Jaime Cardenas", "Jaime Guarin", "Joe M Cuschieri", "Joerg Gomolka", "John Prokos",
+  "Jorge Luyo", "Jorge Novoa", "Jorge Torrejon", "Jose A Bazan", "Jose Del Carpio",
+  "Jose Rey", "Juan Montoya", "Justin Mango", "Kevin McCluskey", "Manuel Salcedo",
+  "Marcelo Sicuro", "Mariano Faresi", "Mario Selman", "Martin Echevarria", "Mauricio Ortiz",
+  "Mauricio Plata", "Metin Altay", "Michael Seward", "Moishe Mana", "Moshe Peress",
+  "Nelson Buitrago", "Oguz Demir", "Paulo Schneider", "Pierre Gaudry", "Rafael Cristian",
+  "Ricardo Correa", "Rodolfo Carrillo", "Rolf Heinemann", "Sydney McCausland", "Vicente Arias",
+  "Wilvens Estaing", "Yessid Ortiz", "Yumar Labrador"
+];
 
 /* ---------------- balancing ---------------- */
 const endOf  = p => (typeof p.endurance==='number' ? p.endurance : 3); // stamina, 1..5
@@ -1303,7 +1338,6 @@ function renderFieldSelect(){
     sel.value = selectedFieldId;
   }
   const f = selectedField();
-  $('venueField').value = f ? f.name : '';
   $('venueAddr').value  = f ? f.address : '';
   $('fieldDelBtn').disabled = !f;
   // reflect per-side size toggle
@@ -1388,10 +1422,12 @@ document.querySelectorAll('.vs-opt').forEach(btn=>{
   });
 });
 $('fieldNewBtn').onclick = ()=>{
-  const f = { id:uid(), name:'', address:'' };
+  const nm = (prompt('Field name') || '').trim();
+  if(!nm) return;
+  const f = { id:uid(), name:nm, address:'', size:12 };
   fields.push(f); selectedFieldId = f.id;
   saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
-  $('venueField').focus();
+  $('venueAddr').focus();
 };
 $('fieldDelBtn').onclick = ()=>{
   if(!selectedField()) return;
@@ -1399,25 +1435,57 @@ $('fieldDelBtn').onclick = ()=>{
   selectedFieldId = fields.length ? fields[0].id : null;
   saveFields(); renderFieldSelect(); renderMatchVenue(); publishField();
 };
-['venueField','venueAddr'].forEach(id=>{
-  $(id).addEventListener('input', ()=>{
-    let f = selectedField();
-    if(!f){ f = { id:uid(), name:'', address:'' }; fields.push(f); selectedFieldId = f.id; }
-    f.name = $('venueField').value;
-    f.address = $('venueAddr').value;
-    // refresh the dropdown label without stealing focus
-    const opt = [...$('fieldSelect').options].find(o=>o.value===selectedFieldId);
-    if(opt) opt.textContent = f.name || 'Untitled field';
-    else renderFieldSelect();
-    $('fieldDelBtn').disabled = false;
-    saveFields(); renderMatchVenue(); publishField();
-  });
+$('venueAddr').addEventListener('input', ()=>{
+  const f = selectedField();
+  if(!f) return;
+  f.address = $('venueAddr').value;
+  saveFields(); renderMatchVenue(); publishField();
 });
 $('nameInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addPlayer($('nameInput').value); $('nameInput').value=''; } });
 $('loadAllBtn').onclick = loadAll;
 $('loadRegularBtn').onclick = loadRegular;
 $('clearAttBtn').onclick = ()=>{ players.forEach(p=>{p.present=false; p.sub=false;}); teams=null; save(players); renderRoster(); renderMatch(); };
 $('syncRsvpBtn').onclick = syncRSVPs;
+
+/* Backup / Restore — saves EVERYTHING (players + ratings, results, saved lineups, fields) to a file */
+function backupData(){
+  const data = { app:'SIDES', v:1, ts:Date.now(),
+    players, results, savedLineups, fields, selectedFieldId };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sides-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  flashBtn($('backupBtn'), '✓ Saved', '⬇ Backup');
+}
+function restoreData(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(Array.isArray(d.players)){
+        players = d.players.map(p=>({
+          id: p.id || uid(), name: p.name || 'Player',
+          skill: +p.skill||3, speed:+p.speed||3, endurance:+p.endurance||3, age:+p.age||3,
+          position: POSITIONS.includes(p.position)?p.position:'MID',
+          present: !!p.present, sub: !!p.sub, captain: !!p.captain
+        }));
+        save(players);
+      }
+      if(Array.isArray(d.results)){ results = d.results; saveResults(); recomputeRecords(); }
+      if(Array.isArray(d.savedLineups)){ savedLineups = d.savedLineups; saveSavedLineups(); }
+      if(Array.isArray(d.fields)){ fields = d.fields; selectedFieldId = d.selectedFieldId || (fields[0]&&fields[0].id) || null; saveFields(); }
+      teams = null;
+      renderRoster(); renderFieldSelect(); renderMatchVenue(); renderMatch(); updateMatchState(); publishField();
+      flashBtn($('restoreBtn'), '✓ Restored', '⬆ Restore');
+    }catch(e){ flashBtn($('restoreBtn'), '✗ Bad file', '⬆ Restore'); }
+  };
+  r.readAsText(file);
+}
+$('backupBtn').onclick = backupData;
+$('restoreBtn').onclick = ()=> $('restoreInput').click();
+$('restoreInput').onchange = e=>{ const f=e.target.files[0]; if(f) restoreData(f); e.target.value=''; };
 $('balanceBtn').onclick = doBalance;
 $('reshuffleBtn').onclick = doBalance;
 $('prevBtn').onclick = goPrev;
@@ -1502,6 +1570,23 @@ window.addEventListener('scroll', hideTip, true);
 /* ---------------- init + migration ---------------- */
 (async ()=>{
   players = await load();
+  // one-time roster reset: when this version tag changes, clear the old roster and
+  // load exactly the registered players (fresh, default ratings)
+  let rv=null; try{ rv=localStorage.getItem('sides:rosterVersion'); }catch(e){}
+  if(rv !== ROSTER_VERSION){
+    players = REGULARS.map(n=>({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3,
+      position:'MID', present:false, sub:false, captain:isDefaultCaptain(n) }));
+    save(players);
+    try{ localStorage.setItem('sides:rosterVersion', ROSTER_VERSION); }catch(e){}
+    if(SB_ON){ try{
+      await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
+        headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+        body: JSON.stringify([
+          { session:'__config__', name:'__ROSTER__', status: JSON.stringify(players.map(p=>({id:p.id, name:p.name}))) },
+          { session:'__config__', name:'__ROSTERVER__', status: JSON.stringify(ROSTER_VERSION) }
+        ])});
+    }catch(e){} }   // overwrite ONLY the shared roster + version with the new list (fields untouched)
+  }
   players.forEach(p=>{
     // migrate from earlier 1-10 skill / gk-flag version
     if(typeof p.speed !== 'number') p.speed = 3;
