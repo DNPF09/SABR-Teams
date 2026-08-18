@@ -447,11 +447,37 @@ async function publishField(){
   // full field list (global) so the RSVP page can offer them for Wed/Sat locking
   const list = (typeof fields!=='undefined' ? fields : []).map(x=>({ name:x.name||'', address:x.address||'', size:DEFAULT_SIZE(x) }));
   rows.push({ session:'__config__', name:'__FIELDS__', status: JSON.stringify(list) });
+  // shared roster (id+name) so name edits on RSVP can sync back by id
+  rows.push({ session:'__config__', name:'__ROSTER__', status: JSON.stringify(players.map(p=>({id:p.id, name:p.name}))) });
   try{
     await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
       body: JSON.stringify(rows)});
   }catch(e){}
+}
+
+// pull fields added and names edited on the RSVP page, merge into SIDES
+async function pullSharedConfig(){
+  if(!SB_ON) return false;
+  let changed = false;
+  try{
+    const res = await fetch(`${SB_URL}/rest/v1/rsvp?session=eq.__config__&name=in.(%22__FIELDS__%22,%22__ROSTER__%22)&select=name,status`, {headers: sbHeaders()});
+    const arr = await res.json();
+    const map = {}; (arr||[]).forEach(r=>{ try{ map[r.name]=JSON.parse(r.status); }catch(e){} });
+    const sf = map['__FIELDS__'];
+    if(Array.isArray(sf)){
+      const have = new Set(fields.map(f=>(f.name||'').trim().toLowerCase()));
+      sf.forEach(f=>{ const nm=(f.name||'').trim();
+        if(nm && !have.has(nm.toLowerCase())){ fields.push({ id:uid(), name:nm, address:f.address||'', size:f.size }); changed=true; } });
+    }
+    const sr = map['__ROSTER__'];
+    if(Array.isArray(sr)){
+      const byId = new Map(players.map(p=>[p.id,p]));
+      sr.forEach(r=>{ const p=byId.get(r.id); if(p && r.name && p.name!==r.name){ p.name=r.name; changed=true; } });
+    }
+  }catch(e){}
+  if(changed){ saveFields(); save(players); }
+  return changed;
 }
 
 /* ---------------- storage ----------------
@@ -517,8 +543,7 @@ const VENUE_KEY  = 'sides:venue';   // legacy single-venue key (for migration on
 /* Built-in fields — seeded on a fresh device so they're always available.
    El Rio is 11 v 11; add your other fields here (size 12). */
 const DEFAULT_FIELDS = [
-  { name: 'El Rio', address: '', size: 11 }
-  // e.g. { name: 'Patch Reef Park', address: '2000 W Yamato Rd, Boca Raton, FL', size: 12 },
+  // no fields by default — add them in the app or on the RSVP admin
 ];
 async function saveFields(){
   const json = JSON.stringify({ fields, selectedFieldId });
@@ -1511,9 +1536,11 @@ window.addEventListener('scroll', hideTip, true);
   const fdata = await loadFields();
   fields = fdata.fields || [];
   selectedFieldId = fdata.selectedFieldId || (fields[0] && fields[0].id) || null;
+  await pullSharedConfig();      // apply fields added / names edited on RSVP
+  renderRoster();                // reflect any synced name changes
   renderFieldSelect();
   renderMatchVenue();
-  publishField();     // make the field list available to the RSVP page
+  publishField();     // make the field list & roster available to the RSVP page
 })();
 </script>
 </body>

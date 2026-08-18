@@ -31,6 +31,13 @@
   .status .st-main{font-family:'Anton';font-size:22px;letter-spacing:.02em;margin-top:4px;text-transform:uppercase;}
   .status.open .st-main{color:var(--ok);}
   .status .st-sub{margin-top:6px;font-size:13px;color:var(--muted);}
+  .adminbar{display:none;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:12px;}
+  .adminbar.show{display:flex;}
+  .adm-link{background:transparent;border:0;color:var(--muted-2);font-size:12px;cursor:pointer;text-decoration:underline;font-family:'Inter';}
+  .adm-link:hover{color:var(--chalk);}
+  .adm-on{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.04em;}
+  .adm-pw{background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:7px 10px;font-family:'Inter';font-size:13px;outline:none;}
+  .adm-go{background:var(--gold);border:0;color:#241a04;font-weight:700;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;}
   .demo-banner{background:rgba(242,177,56,.12);border:1px solid rgba(242,177,56,.4);color:var(--gold);
     border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:16px;line-height:1.4;}
   .flock{display:none;flex-direction:column;gap:8px;margin-bottom:14px;padding:12px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
@@ -40,6 +47,27 @@
   .flock-row{display:flex;align-items:center;gap:10px;}
   .flock-row label{width:38px;font-size:12px;font-weight:700;color:var(--chalk);}
   .flock-row select{flex:1;background:var(--pitch);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:9px 11px;font-family:'Inter';font-size:14px;outline:none;}
+  .flock-add{margin-top:2px;background:transparent;border:1px dashed var(--muted-2);color:var(--muted);border-radius:8px;padding:8px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;}
+  .flock-add:hover{color:var(--chalk);border-color:var(--muted);}
+  .flock-form{flex-direction:column;gap:8px;margin-top:2px;}
+  .flock-form input{background:var(--pitch);border:1px solid var(--line);border-radius:8px;color:var(--chalk);padding:9px 11px;font-family:'Inter';font-size:14px;outline:none;}
+  .af-size{display:flex;align-items:center;gap:8px;}
+  .af-size span{font-size:12px;color:var(--muted);}
+  .af-sz{width:40px;padding:6px 0;border-radius:8px;border:1px solid var(--line);background:var(--pitch);color:var(--muted);font-weight:700;cursor:pointer;font-family:'Inter';}
+  .af-sz.on{background:var(--ok);border-color:var(--ok);color:#08221a;}
+  .af-actions{display:flex;gap:8px;}
+  .af-actions button{flex:1;border-radius:8px;padding:9px;border:0;font-family:'Inter';font-weight:700;font-size:13px;cursor:pointer;background:var(--ok);color:#08221a;}
+  .af-actions button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .menote{background:rgba(87,192,138,.1);border:1px solid rgba(87,192,138,.3);color:var(--ok);border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px;}
+  .menote b{color:var(--chalk);}
+  .row.mine{border-color:rgba(242,177,56,.5);}
+  .row.taken{opacity:.72;}
+  .row .you{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-left:2px;}
+  .row .edit-btn{flex:0 0 auto;background:transparent;border:0;color:var(--muted-2);font-size:14px;cursor:pointer;padding:0 2px;}
+  .row .edit-btn:hover{color:var(--chalk);}
+  .row.editing{gap:8px;}
+  .edit-in{flex:1;min-width:0;background:var(--pitch);border:1px solid var(--gold);border-radius:8px;color:var(--chalk);font-family:'Inter';font-weight:600;font-size:15px;padding:8px 10px;outline:none;}
+  .edit-save{flex:0 0 auto;background:var(--gold);border:0;color:#241a04;font-weight:800;border-radius:8px;width:40px;font-size:15px;cursor:pointer;}
   .mv{display:none;align-items:center;gap:10px;margin-bottom:16px;padding:11px 13px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;}
   .mv.show{display:flex;}
   .mv .pin{font-size:16px;line-height:1;}
@@ -98,6 +126,7 @@
     <div class="stamp">Pick-up<b>Wed 6PM · Sat 8AM</b></div>
   </header>
 
+  <div id="adminBar" class="adminbar"></div>
   <div id="demoBanner" class="demo-banner" style="display:none"></div>
   <div id="status" class="status"></div>
   <div id="fieldLock" class="flock"></div>
@@ -118,6 +147,11 @@
 const SUPABASE_URL = 'https://snzfdahttdyeouqsmqgl.supabase.co';        // from Settings > Data API
 const SUPABASE_ANON_KEY = 'sb_publishable_2vVk6QKUfQ2vgcqCTwCbVQ_5XmhE2Hh';   // publishable key
 const SHARED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+/* Admin password — unlocks editing names, adding fields, locking Wed/Sat fields,
+   and picking more than one player. Change this to your own. (It's visible in the
+   page source, so it's a light gate for a trusted group, not real security.) */
+const ADMIN_PW = 'sabr-admin';
+let ADMIN = false;
 function sbHeaders(extra){
   const h = { apikey: SUPABASE_ANON_KEY };
   // legacy anon JWT keys go in the Authorization header too; new publishable keys must not
@@ -216,6 +250,9 @@ function fmtStamp(iso){
 let SESSION=null, KEY='', INORDER=[], INSET=new Set(), GKS=new Set(), TIMES={}, FILTER='', SESSION_FIELD=null;
 let FIELDLIST=[];              // fields published from SIDES: [{name,address,size}]
 let DAYLOCK={W:null,S:null};   // field name locked for Wednesday / Saturday
+let PLAYERS=[];                // [{id,name}] pickable roster (from SIDES) or fallback
+let ME=null;                   // the single player this device has picked (per session)
+let EDIT_ID=null;              // roster id currently being name-edited
 const CFG='__config__';
 
 function lockedField(){         // the field locked for the upcoming day (W or S)
@@ -265,20 +302,88 @@ async function saveDayLock(){
       body: JSON.stringify({session:CFG, name:'__DAYLOCK__', status:JSON.stringify(DAYLOCK), updated:new Date().toISOString()})});
   }catch(e){}
 }
+// pickable roster (from SIDES, with ids so name edits sync back); falls back to the built-in list
+async function loadRoster(){
+  if(SHARED){
+    const r = await loadConfig('__ROSTER__');
+    if(Array.isArray(r) && r.length) return r.map(x=>({ id:x.id||null, name:x.name }));
+  }
+  return ROSTER.map(n=>({ id:null, name:n }));
+}
+async function saveRoster(){
+  if(!SHARED) return;
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {method:'POST',
+      headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+      body: JSON.stringify({session:CFG, name:'__ROSTER__', status:JSON.stringify(PLAYERS), updated:new Date().toISOString()})});
+  }catch(e){}
+}
+async function saveFieldList(){
+  if(!SHARED) return;
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {method:'POST',
+      headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+      body: JSON.stringify({session:CFG, name:'__FIELDS__', status:JSON.stringify(FIELDLIST), updated:new Date().toISOString()})});
+  }catch(e){}
+}
+// this device's single pick, kept per session
+function loadMe(){ try{ return localStorage.getItem('sabr:me:'+KEY)||null; }catch(e){ return null; } }
+function saveMe(v){ try{ v?localStorage.setItem('sabr:me:'+KEY,v):localStorage.removeItem('sabr:me:'+KEY); }catch(e){} }
+async function reloadIns(){
+  const list = await loadIns(KEY);
+  INORDER = list.map(x=>x.name); INSET = new Set(INORDER);
+  TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
+}
 
 
+function renderAdmin(){
+  const box=$('adminBar'); box.classList.add('show');
+  if(ADMIN){
+    box.innerHTML=`<span class="adm-on">🔓 Admin</span><button id="admOut" class="adm-link">log out</button>`;
+    $('admOut').onclick=()=>{ ADMIN=false; try{localStorage.removeItem('sabr:admin');}catch(e){} render(); };
+  } else {
+    box.innerHTML=`<button id="admIn" class="adm-link">Admin</button>`;
+    $('admIn').onclick=()=>{
+      box.innerHTML=`<input id="admPw" type="password" placeholder="Admin password" class="adm-pw" autocomplete="off"><button id="admGo" class="adm-go">Go</button><button id="admX" class="adm-link">✕</button>`;
+      $('admPw').focus();
+      const go=()=>{ if($('admPw').value===ADMIN_PW){ ADMIN=true; try{localStorage.setItem('sabr:admin','1');}catch(e){} render(); } else { $('admPw').value=''; $('admPw').placeholder='Wrong — try again'; } };
+      $('admGo').onclick=go;
+      $('admX').onclick=()=>renderAdmin();
+      $('admPw').onkeydown=e=>{ if(e.key==='Enter') go(); };
+    };
+  }
+}
 function renderFieldLock(){
   const box=$('fieldLock');
-  if(!SHARED || !FIELDLIST.length){ box.classList.remove('show'); box.innerHTML=''; return; }
+  if(!SHARED || !ADMIN){ box.classList.remove('show'); box.innerHTML=''; return; }
   const opts = d => `<option value="">— none —</option>` + FIELDLIST.map(f=>
     `<option value="${esc(f.name)}" ${DAYLOCK[d]===f.name?'selected':''}>${esc(f.name||'Untitled')} · ${f.size} v ${f.size}</option>`).join('');
   box.innerHTML = `
     <div class="flock-h">Fields <span>lock which field is used each day</span></div>
     <div class="flock-row"><label>Wed</label><select id="wedField">${opts('W')}</select></div>
-    <div class="flock-row"><label>Sat</label><select id="satField">${opts('S')}</select></div>`;
+    <div class="flock-row"><label>Sat</label><select id="satField">${opts('S')}</select></div>
+    <button id="addFieldBtn" class="flock-add">+ Add field</button>
+    <div id="addFieldForm" class="flock-form" style="display:none">
+      <input id="afName" type="text" placeholder="Field name" autocomplete="off">
+      <input id="afAddr" type="text" placeholder="Address (optional)" autocomplete="off">
+      <div class="af-size"><span>Per side</span>
+        <button class="af-sz on" data-sz="11">11</button>
+        <button class="af-sz" data-sz="12">12</button></div>
+      <div class="af-actions"><button id="afSave">Add field</button><button id="afCancel" class="ghost">Cancel</button></div>
+    </div>`;
   box.classList.add('show');
   $('wedField').onchange = ()=>{ DAYLOCK.W = $('wedField').value || null; saveDayLock(); render(); };
   $('satField').onchange = ()=>{ DAYLOCK.S = $('satField').value || null; saveDayLock(); render(); };
+  let afSize = 11;
+  $('addFieldBtn').onclick = ()=>{ $('addFieldForm').style.display='flex'; $('addFieldBtn').style.display='none'; $('afName').focus(); };
+  $('afCancel').onclick = ()=>{ $('addFieldForm').style.display='none'; $('addFieldBtn').style.display='block'; };
+  box.querySelectorAll('.af-sz').forEach(b=> b.onclick=()=>{ afSize=+b.dataset.sz; box.querySelectorAll('.af-sz').forEach(x=>x.classList.toggle('on', x===b)); });
+  $('afSave').onclick = async ()=>{
+    const nm=$('afName').value.trim(); if(!nm) return;
+    if(!FIELDLIST.some(f=>(f.name||'').trim().toLowerCase()===nm.toLowerCase()))
+      FIELDLIST.push({ name:nm, address:$('afAddr').value.trim(), size:afSize });
+    await saveFieldList(); render();
+  };
 }
 function renderVenue(){
   const box=$('venue');
@@ -307,7 +412,31 @@ function renderStatus(){
 }
 function renderBody(){
   const body=$('body');
-  if(!SESSION.isOpen){ body.innerHTML=''; $('refreshBtn').style.display='none'; return; }
+  if(!SESSION.isOpen){
+    if(ADMIN){
+      // roster name editor is available to admin even when sign-up is closed
+      const list=[...PLAYERS].sort((a,b)=>a.name.localeCompare(b.name));
+      const f=FILTER.trim().toLowerCase();
+      const shown=f?list.filter(p=>p.name.toLowerCase().includes(f)):list;
+      body.innerHTML=`
+        <div class="hint">Admin — edit player names below (syncs to the app). Sign-up opens ${fmt(SESSION.open,false)}.</div>
+        <input class="search" id="search" type="text" placeholder="Search name…" autocomplete="off" value="${esc(FILTER)}">
+        <div class="list">
+          ${shown.map(p=>{
+            if(EDIT_ID && p.id===EDIT_ID){
+              return `<div class="row editing" data-id="${esc(p.id)}"><input class="edit-in" id="editIn" type="text" maxlength="40" value="${esc(p.name)}"><button class="edit-save" data-save="${esc(p.id)}">✓</button></div>`;
+            }
+            return `<div class="row"><span class="nm">${esc(p.name)}</span>${p.id?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(p.name)}" title="edit name">✎</button>`:''}</div>`;
+          }).join('')}
+        </div>`;
+      $('refreshBtn').style.display=SHARED?'block':'none';
+      const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
+      const ei=$('editIn'); if(ei){ ei.focus(); ei.select();
+        ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } }; }
+      return;
+    }
+    body.innerHTML=''; $('refreshBtn').style.display='none'; return;
+  }
   const st = computeStatus();
   const gk = n => GKS.has(n.trim().toLowerCase());
   const chip = n => `<span class="chip ${gk(n)?'gk':''}">${gk(n)?'🧤 ':''}${esc(n)}${TIMES[n]?`<em class="ts">${fmtStamp(TIMES[n])}</em>`:''}</span>`;
@@ -316,27 +445,45 @@ function renderBody(){
     if(gk(n)) return '<span class="bdg gk">GK · starting</span>';
     return st.startSet.has(n) ? '<span class="bdg start">Starting</span>' : '<span class="bdg sub">Sub</span>';
   };
-  const names=[...ROSTER].sort((a,b)=>a.localeCompare(b));
+  const list = [...PLAYERS].sort((a,b)=>a.name.localeCompare(b.name));
   const f=FILTER.trim().toLowerCase();
-  const shown=f?names.filter(n=>n.toLowerCase().includes(f)):names;
+  const shown=f?list.filter(p=>p.name.toLowerCase().includes(f)):list;
+  const meNote = (!ADMIN && ME) ? `<div class="menote">You're in as <b>${esc(ME)}</b> — tap your name to remove.</div>` : '';
+  const hint = ADMIN
+    ? `Admin — tap any name to add or remove. First ${st.cap2} in start${GKS.size?' · keepers always start':''}.`
+    : `Tap your name to sign in — one pick per phone. First ${st.cap2} in start${GKS.size?' · keepers always start':''}.`;
   body.innerHTML=`
     <div class="count"><b>${INORDER.length}</b><span>in · ${st.starting.length} starting · ${st.subs.length} sub${st.subs.length===1?'':'s'}</span></div>
-    <div class="hint">First ${st.cap2} to sign in are the starting lineup${GKS.size?' · keepers always start':''}.</div>
+    <div class="hint">${hint}</div>
+    ${meNote}
     ${st.starting.length?`<div class="grp"><div class="grp-h start">Starting · ${st.starting.length}/${st.cap2}</div><div class="chips">${st.starting.map(chip).join('')}</div></div>`:''}
     ${st.subs.length?`<div class="grp"><div class="grp-h sub">Subs · ${st.subs.length}</div><div class="chips">${st.subs.map(chip).join('')}</div></div>`:''}
     <input class="search" id="search" type="text" placeholder="Search your name…" autocomplete="off" value="${esc(FILTER)}">
     <div class="list">
-      ${shown.map(n=>`<div class="row ${INSET.has(n)?'in':''}" data-name="${esc(n)}">
-        <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-        <span class="nm">${esc(n)}</span>
-        ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
-        ${badge(n)}
-      </div>`).join('')}
+      ${shown.map(p=>{
+        const n=p.name, mine=!ADMIN&&ME===n, taken=!ADMIN&&INSET.has(n)&&!mine;
+        if(EDIT_ID && p.id===EDIT_ID){
+          return `<div class="row editing" data-id="${esc(p.id)}">
+            <input class="edit-in" id="editIn" type="text" maxlength="40" value="${esc(n)}">
+            <button class="edit-save" data-save="${esc(p.id)}">✓</button>
+          </div>`;
+        }
+        return `<div class="row ${INSET.has(n)?'in':''} ${mine?'mine':''} ${taken?'taken':''}" data-name="${esc(n)}">
+          <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="nm">${esc(n)}${mine?' <em class="you">you</em>':''}</span>
+          ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
+          ${badge(n)}
+          ${(ADMIN&&p.id)?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(n)}" title="edit name">✎</button>`:''}
+        </div>`;
+      }).join('')}
     </div>`;
   $('refreshBtn').style.display = SHARED ? 'block' : 'none';
   const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
+  const ei=$('editIn'); if(ei){ ei.focus(); ei.select();
+    ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } };
+  }
 }
-function render(){ renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
+function render(){ renderAdmin(); renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
 
 async function refresh(){
   SESSION = currentSession(etNow());
@@ -344,28 +491,66 @@ async function refresh(){
   SESSION_FIELD = await loadField(KEY);
   FIELDLIST = (await loadConfig('__FIELDS__')) || [];
   DAYLOCK   = (await loadConfig('__DAYLOCK__')) || {W:null,S:null};
+  PLAYERS   = await loadRoster();
   GKS = await loadGKs(KEY);
   const list = SESSION.isOpen ? await loadIns(KEY) : [];
   INORDER = list.map(x=>x.name);
   INSET = new Set(INORDER);
   TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
+  ME = loadMe();
+  if(ME && !INSET.has(ME)){ ME=null; saveMe(null); }   // your pick was cleared elsewhere
+  try{ ADMIN = localStorage.getItem('sabr:admin')==='1'; }catch(e){ ADMIN=false; }
+  render();
+}
+
+async function commitEdit(id, newName){
+  const nm = (newName||'').trim();
+  const p = PLAYERS.find(x=>x.id===id);
+  if(!p){ EDIT_ID=null; render(); return; }
+  const old = p.name;
+  EDIT_ID = null;
+  if(!nm || nm===old){ render(); return; }
+  p.name = nm;
+  await saveRoster();
+  // migrate the in-record if this player was already in
+  if(INSET.has(old)){
+    await setIn(KEY, old, false);
+    await setIn(KEY, nm, true);
+    if(ME===old){ ME=nm; saveMe(nm); }
+  }
+  if(SHARED) await reloadIns();
   render();
 }
 
 $('body').addEventListener('click', async e=>{
+  const eb=e.target.closest('.edit-btn'); if(eb){ if(!ADMIN) return; EDIT_ID=eb.dataset.edit; render(); return; }
+  const sv=e.target.closest('.edit-save'); if(sv){ const ei=$('editIn'); commitEdit(sv.dataset.save, ei?ei.value:''); return; }
+  if(e.target.closest('.editing')) return;
+  if(EDIT_ID){ EDIT_ID=null; render(); return; }   // tapped elsewhere -> cancel edit
   const row=e.target.closest('.row'); if(!row || !SESSION.isOpen) return;
-  const name=row.dataset.name;
-  const nowIn=!INSET.has(name);
-  if(nowIn){ INSET.add(name); INORDER.push(name); TIMES[name]=new Date().toISOString(); }
-  else { INSET.delete(name); INORDER=INORDER.filter(n=>n!==name); delete TIMES[name]; }
-  render();                        // optimistic
-  await setIn(KEY, name, nowIn);
-  if(SHARED){
-    const list = await loadIns(KEY);
-    INORDER = list.map(x=>x.name); INSET = new Set(INORDER);
-    TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
+  const name=row.dataset.name; if(!name) return;
+
+  if(ADMIN){                            // admin can toggle anyone, add as many as needed
+    const nowIn=!INSET.has(name);
+    if(nowIn){ INSET.add(name); INORDER.push(name); TIMES[name]=new Date().toISOString(); }
+    else { INSET.delete(name); INORDER=INORDER.filter(n=>n!==name); delete TIMES[name]; }
+    render(); await setIn(KEY,name,nowIn);
+  } else if(ME===name){                 // player: sign yourself out
+    ME=null; saveMe(null);
+    INSET.delete(name); INORDER=INORDER.filter(n=>n!==name); delete TIMES[name];
+    render(); await setIn(KEY,name,false);
+  } else if(INSET.has(name)){           // already signed in by someone else — can't touch
+    return;
+  } else {                             // player: pick this name (switch off your previous pick)
+    const prev=ME;
+    ME=name; saveMe(name);
+    if(prev){ INSET.delete(prev); INORDER=INORDER.filter(n=>n!==prev); delete TIMES[prev]; }
+    INSET.add(name); INORDER.push(name); TIMES[name]=new Date().toISOString();
     render();
+    if(prev) await setIn(KEY,prev,false);
+    await setIn(KEY,name,true);
   }
+  if(SHARED){ await reloadIns(); render(); }
 });
 $('refreshBtn').onclick = refresh;
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
