@@ -195,13 +195,21 @@ function shift(base, days, hour){ const d=new Date(base); d.setDate(d.getDate()+
 
 function currentSession(now){
   const cands = [];
-  for(let add=0; add<=9; add++){
+  for(let add=-4; add<=9; add++){
     const d = new Date(now); d.setDate(d.getDate()+add);
-    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); if(k>now) cands.push({kick:k, open:shift(k,-1,8), day:'Wednesday'}); }
-    if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  if(k>now) cands.push({kick:k, open:shift(k,-2,8), day:'Saturday'}); }
+    if(d.getDay()===3){                              // Wednesday 6 PM game — list clears Wed 11 PM
+      const k=new Date(d); k.setHours(18,0,0,0);
+      const clear=new Date(d); clear.setHours(23,0,0,0);
+      cands.push({kick:k, open:shift(k,-1,8), clear, day:'Wednesday'});
+    }
+    if(d.getDay()===6){                              // Saturday 8 AM game — list clears the following Mon 11 PM
+      const k=new Date(d); k.setHours(8,0,0,0);
+      const clear=new Date(d); clear.setDate(clear.getDate()+2); clear.setHours(23,0,0,0);
+      cands.push({kick:k, open:shift(k,-2,8), clear, day:'Saturday'});
+    }
   }
-  cands.sort((a,b)=>a.kick-b.kick);
-  const s = cands[0];
+  const future = cands.filter(s=>s.clear.getTime() > now.getTime()).sort((a,b)=>a.clear-b.clear);
+  const s = future[0];
   s.isOpen = now >= s.open && now < s.kick;
   return s;
 }
@@ -264,6 +272,23 @@ let SESSION=null, KEY='', INORDER=[], INSET=new Set(), GKS=new Set(), TIMES={}, 
 let FIELDLIST=[];              // fields published from SIDES: [{name,address,size}]
 let DAYLOCK={W:null,S:null};   // field name locked for Wednesday / Saturday
 let PLAYERS=[];                // [{id,name}] pickable roster (from SIDES) or fallback
+let SHOWPAST=false, PAST=[];   // admin "past RSVPs" view
+
+async function loadPast(){
+  if(!SHARED) return [];
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?status=eq.in&select=session,name,updated&order=updated.asc`, {headers: sbHeaders()});
+    const rows = await res.json();
+    const by = {};
+    (rows||[]).forEach(r=>{ if(!/^\d/.test(r.session||'')) return; (by[r.session]=by[r.session]||[]).push({name:r.name, ts:r.updated}); });
+    return Object.keys(by).map(key=>{
+      const m = key.match(/^(\d+)-(\d+)-(\d+)-([WS])$/);
+      const date = m ? new Date(+m[1], +m[2]-1, +m[3]) : null;
+      return { key, date, players: by[key] };
+    }).sort((a,b)=> (b.date?b.date.getTime():0) - (a.date?a.date.getTime():0));
+  }catch(e){ return []; }
+}
+async function openPast(){ SHOWPAST=true; PAST=await loadPast(); render(); }
 let ME=null;                   // the single player this device has picked (per session)
 let EDIT_ID=null;              // roster id currently being name-edited
 const CFG='__config__';
@@ -359,8 +384,9 @@ async function reloadIns(){
 function renderAdmin(){
   const box=$('adminBar'); box.classList.add('show');
   if(ADMIN){
-    box.innerHTML=`<span class="adm-on">🔓 Admin</span><button id="admOut" class="adm-link">log out</button>`;
-    $('admOut').onclick=()=>{ ADMIN=false; try{localStorage.removeItem('sabr:admin');}catch(e){} render(); };
+    box.innerHTML=`<span class="adm-on">🔓 Admin</span><button id="admPast" class="adm-link">Past RSVPs</button><button id="admOut" class="adm-link">log out</button>`;
+    $('admPast').onclick=openPast;
+    $('admOut').onclick=()=>{ ADMIN=false; SHOWPAST=false; try{localStorage.removeItem('sabr:admin');}catch(e){} render(); };
   } else {
     box.innerHTML=`<button id="admIn" class="adm-link">Admin</button>`;
     $('admIn').onclick=()=>{
@@ -534,7 +560,20 @@ function renderBody(){
     ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } };
   }
 }
-function render(){ renderAdmin(); renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
+function renderPast(){
+  $('status').className='status'; $('status').innerHTML='';
+  $('fieldLock').classList.remove('show'); $('fieldLock').innerHTML='';
+  $('venue').classList.remove('show'); $('venue').innerHTML='';
+  const rows = PAST.slice(0,15).map(s=>{
+    const dstr = s.date ? s.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : s.key;
+    const chips = s.players.map(p=>`<span class="chip">${esc(p.name)}${p.ts?`<em class="ts">${fmtStamp(p.ts)}</em>`:''}</span>`).join('');
+    return `<div class="grp"><div class="grp-h">${dstr} · ${s.players.length} in</div><div class="chips">${chips}</div></div>`;
+  }).join('') || '<div class="hint">No past RSVPs yet.</div>';
+  $('body').innerHTML = `<button id="pastBack" class="flock-add" style="margin-bottom:12px">← Back</button><div class="hint">Past sign-ups · most recent first</div>${rows}`;
+  $('refreshBtn').style.display='none';
+  $('pastBack').onclick=()=>{ SHOWPAST=false; render(); };
+}
+function render(){ renderAdmin(); if(SHOWPAST && ADMIN){ renderPast(); return; } renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
 
 async function refresh(){
   SESSION = currentSession(etNow());

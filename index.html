@@ -380,13 +380,13 @@ function sbHeaders(extra){
 function rsvpSessionKey(){
   const now = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
   const cands = [];
-  for(let add=0; add<=9; add++){
+  for(let add=-4; add<=9; add++){
     const d = new Date(now); d.setDate(d.getDate()+add);
-    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); if(k>now) cands.push({k, day:'W'}); }
-    if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  if(k>now) cands.push({k, day:'S'}); }
+    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); const c=new Date(d); c.setHours(23,0,0,0); cands.push({k, c, day:'W'}); }
+    if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  const c=new Date(d); c.setDate(c.getDate()+2); c.setHours(23,0,0,0); cands.push({k, c, day:'S'}); }
   }
-  cands.sort((a,b)=>a.k-b.k);
-  const s = cands[0];
+  const fut = cands.filter(s=>s.c.getTime() > now.getTime()).sort((a,b)=>a.c-b.c);
+  const s = fut[0];
   return `${s.k.getFullYear()}-${s.k.getMonth()+1}-${s.k.getDate()}-${s.day}`;
 }
 async function syncRSVPs(){
