@@ -68,6 +68,7 @@
   .row.mine{border-color:rgba(242,177,56,.5);}
   .row.taken{opacity:.72;}
   .row .you{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-left:2px;}
+  .row .cnt{font-size:11px;font-weight:700;color:var(--muted-2);margin-left:6px;font-variant-numeric:tabular-nums;}
   .row .edit-btn{flex:0 0 auto;background:transparent;border:0;color:var(--muted-2);font-size:14px;cursor:pointer;padding:0 2px;}
   .row .edit-btn:hover{color:var(--chalk);}
   .row.editing{gap:8px;}
@@ -273,6 +274,32 @@ let FIELDLIST=[];              // fields published from SIDES: [{name,address,si
 let DAYLOCK={W:null,S:null};   // field name locked for Wednesday / Saturday
 let PLAYERS=[];                // [{id,name}] pickable roster (from SIDES) or fallback
 let SHOWPAST=false, PAST=[];   // admin "past RSVPs" view
+let COUNTS={};                 // per-player sign-ups this season (resets after Jan 31)
+
+// season runs Feb 1 -> Jan 31; a sign-up only counts if its game date is in the current season
+function seasonStart(now){
+  const y=now.getFullYear(), m=now.getMonth();     // 0 = January
+  return new Date(m===0 ? y-1 : y, 1, 1);          // Feb 1
+}
+async function loadCounts(){
+  if(!SHARED) return {};
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp?status=eq.in&select=session,name`, {headers: sbHeaders()});
+    const rows = await res.json();
+    const start = seasonStart(etNow()).getTime();
+    const perName = {};   // name -> Set of session keys (dedupe)
+    (rows||[]).forEach(r=>{
+      const m = (r.session||'').match(/^(\d+)-(\d+)-(\d+)-[WS]$/);
+      if(!m) return;
+      const d = new Date(+m[1], +m[2]-1, +m[3]).getTime();
+      if(d < start) return;                         // before this season -> ignore (auto-reset)
+      const k = (r.name||'').trim().toLowerCase();
+      (perName[k] = perName[k] || new Set()).add(r.session);
+    });
+    const out={}; Object.keys(perName).forEach(k=> out[k]=perName[k].size);
+    return out;
+  }catch(e){ return {}; }
+}
 
 async function loadPast(){
   if(!SHARED) return [];
@@ -500,7 +527,7 @@ function renderBody(){
             if(EDIT_ID && p.id===EDIT_ID){
               return `<div class="row editing" data-id="${esc(p.id)}"><input class="edit-in" id="editIn" type="text" maxlength="40" value="${esc(p.name)}"><button class="edit-save" data-save="${esc(p.id)}">✓</button></div>`;
             }
-            return `<div class="row"><span class="nm">${esc(p.name)}</span>${p.id?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(p.name)}" title="edit name">✎</button>`:''}</div>`;
+            return `<div class="row"><span class="nm">${esc(p.name)}${COUNTS[p.name.trim().toLowerCase()]?`<span class="cnt" title="sign-ups this season">×${COUNTS[p.name.trim().toLowerCase()]}</span>`:''}</span>${p.id?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(p.name)}" title="edit name">✎</button>`:''}</div>`;
           }).join('')}
         </div>`;
       $('refreshBtn').style.display=SHARED?'block':'none';
@@ -546,7 +573,7 @@ function renderBody(){
         }
         return `<div class="row ${INSET.has(n)?'in':''} ${mine?'mine':''} ${taken?'taken':''}" data-name="${esc(n)}">
           <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          <span class="nm">${esc(n)}${mine?' <em class="you">you</em>':''}</span>
+          <span class="nm">${esc(n)}${mine?' <em class="you">you</em>':''}${COUNTS[n.trim().toLowerCase()]?`<span class="cnt" title="sign-ups this season">×${COUNTS[n.trim().toLowerCase()]}</span>`:''}</span>
           ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
           ${badge(n)}
           ${(ADMIN&&p.id)?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(n)}" title="edit name">✎</button>`:''}
@@ -583,6 +610,7 @@ async function refresh(){
   DAYLOCK   = (await loadConfig('__DAYLOCK__')) || {W:null,S:null};
   PLAYERS   = await loadRoster();
   GKS = await loadGKs(KEY);
+  COUNTS = await loadCounts();
   const list = SESSION.isOpen ? await loadIns(KEY) : [];
   INORDER = list.map(x=>x.name);
   INSET = new Set(INORDER);
