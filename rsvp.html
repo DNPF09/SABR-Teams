@@ -69,6 +69,8 @@
   .row.taken{opacity:.72;}
   .row .you{font-style:normal;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-left:2px;}
   .row .cnt{font-size:11px;font-weight:700;color:var(--muted-2);margin-left:6px;font-variant-numeric:tabular-nums;}
+  .ord{display:inline-block;min-width:16px;font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .chip .ord{margin-right:4px;color:var(--muted-2);}
   .row .edit-btn{flex:0 0 auto;background:transparent;border:0;color:var(--muted-2);font-size:14px;cursor:pointer;padding:0 2px;}
   .row .edit-btn:hover{color:var(--chalk);}
   .row.editing{gap:8px;}
@@ -541,7 +543,9 @@ function renderBody(){
   }
   const st = computeStatus();
   const gk = n => GKS.has(n.trim().toLowerCase());
-  const chip = n => `<span class="chip ${gk(n)?'gk':''}">${gk(n)?'🧤 ':''}${esc(n)}${TIMES[n]?`<em class="ts">${fmtStamp(TIMES[n])}</em>`:''}</span>`;
+  const ORD = {}; INORDER.forEach((n,i)=>{ ORD[n.trim().toLowerCase()] = i+1; });
+  const ordNum = n => ORD[n.trim().toLowerCase()] || '';
+  const chip = n => `<span class="chip ${gk(n)?'gk':''}"><b class="ord">${ordNum(n)}</b>${gk(n)?'🧤 ':''}${esc(n)}${TIMES[n]?`<em class="ts">${fmtStamp(TIMES[n])}</em>`:''}</span>`;
   const badge = n => {
     if(!INSET.has(n)) return '';
     if(gk(n)) return '<span class="bdg gk">GK · starting</span>';
@@ -559,8 +563,8 @@ function renderBody(){
     <div class="hint">${hint}</div>
     ${meNote}
     ${addPlayerHtml()}
-    ${st.starting.length?`<div class="grp"><div class="grp-h start">Starting · ${st.starting.length}/${st.cap2}</div><div class="chips">${st.starting.map(chip).join('')}</div></div>`:''}
-    ${st.subs.length?`<div class="grp"><div class="grp-h sub">Subs · ${st.subs.length}</div><div class="chips">${st.subs.map(chip).join('')}</div></div>`:''}
+    ${st.starting.length?`<div class="grp"><div class="grp-h start">Starting · ${st.starting.length}/${st.cap2}</div><div class="chips">${INORDER.filter(n=>st.startSet.has(n)).map(chip).join('')}</div></div>`:''}
+    ${st.subs.length?`<div class="grp"><div class="grp-h sub">Subs · ${st.subs.length}</div><div class="chips">${INORDER.filter(n=>!st.startSet.has(n)).map(chip).join('')}</div></div>`:''}
     <input class="search" id="search" type="text" placeholder="Search your name…" autocomplete="off" value="${esc(FILTER)}">
     <div class="list">
       ${shown.map(p=>{
@@ -573,7 +577,7 @@ function renderBody(){
         }
         return `<div class="row ${INSET.has(n)?'in':''} ${mine?'mine':''} ${taken?'taken':''}" data-name="${esc(n)}">
           <span class="check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-          <span class="nm">${esc(n)}${mine?' <em class="you">you</em>':''}${COUNTS[n.trim().toLowerCase()]?`<span class="cnt" title="sign-ups this season">×${COUNTS[n.trim().toLowerCase()]}</span>`:''}</span>
+          <span class="nm">${INSET.has(n)?`<b class="ord">${ordNum(n)}</b> `:''}${esc(n)}${mine?' <em class="you">you</em>':''}${COUNTS[n.trim().toLowerCase()]?`<span class="cnt" title="sign-ups this season">×${COUNTS[n.trim().toLowerCase()]}</span>`:''}</span>
           ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
           ${badge(n)}
           ${(ADMIN&&p.id)?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(n)}" title="edit name">✎</button>`:''}
