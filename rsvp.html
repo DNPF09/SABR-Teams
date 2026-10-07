@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>SABR · RSVP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,6 +76,8 @@
   .chip .ord{margin-right:4px;color:var(--muted-2);}
   .row .edit-btn{flex:0 0 auto;background:transparent;border:0;color:var(--muted-2);font-size:14px;cursor:pointer;padding:0 2px;}
   .row .edit-btn:hover{color:var(--chalk);}
+  .row .del-btn{flex:0 0 auto;background:transparent;border:0;color:var(--muted-2);font-size:13px;cursor:pointer;padding:0 2px;}
+  .row .del-btn:hover{color:var(--red);}
   .row.editing{gap:8px;}
   .edit-in{flex:1;min-width:0;background:var(--pitch);border:1px solid var(--gold);border-radius:8px;color:var(--chalk);font-family:'Inter';font-weight:600;font-size:15px;padding:8px 10px;outline:none;}
   .edit-save{flex:0 0 auto;background:var(--gold);border:0;color:#241a04;font-weight:800;border-radius:8px;width:40px;font-size:15px;cursor:pointer;}
@@ -553,6 +558,7 @@ function renderBody(){
           ${INSET.has(n)&&TIMES[n]?`<span class="row-ts">${fmtStamp(TIMES[n])}</span>`:''}
           ${badge(n)}
           ${(ADMIN&&p.id)?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(n)}" title="edit name">✎</button>`:''}
+          ${(ADMIN&&p.id)?`<button class="del-btn" data-del-player="${esc(p.id)}" data-name="${esc(n)}" title="delete player">🗑</button>`:''}
         </div>`;
       }).join('')}
     </div>`;
@@ -616,7 +622,17 @@ async function commitEdit(id, newName){
   render();
 }
 
+async function deletePlayer(id, name){
+  if(!ADMIN) return;
+  if(!confirm('Delete '+name+' from the roster? This also removes them in the app on sync.')) return;
+  PLAYERS = PLAYERS.filter(p=>p.id!==id);
+  if(INSET.has(name)){ INSET.delete(name); INORDER=INORDER.filter(n=>n!==name); delete TIMES[name]; try{ await setIn(KEY,name,false); }catch(e){} }
+  if(ME===name){ ME=null; saveMe(null); }
+  await saveRoster();
+  render();
+}
 $('body').addEventListener('click', async e=>{
+  const dp=e.target.closest('[data-del-player]'); if(dp){ deletePlayer(dp.dataset.delPlayer, dp.dataset.name); return; }
   const eb=e.target.closest('.edit-btn'); if(eb){ if(!ADMIN) return; EDIT_ID=eb.dataset.edit; render(); return; }
   const sv=e.target.closest('.edit-save'); if(sv){ const ei=$('editIn'); commitEdit(sv.dataset.save, ei?ei.value:''); return; }
   if(e.target.closest('.editing')) return;

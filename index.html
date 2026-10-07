@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SIDES — pick-up team balancer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -337,6 +340,7 @@
         <a class="rsvp-link" href="rsvp.html" target="_blank" rel="noopener">Open RSVP page ↗</a>
       </div>
       <div class="backup-row">
+        <button class="btn-ghost" id="refreshServerBtn" title="pull the latest players, ratings & fields saved by other admins">⟳ Refresh</button>
         <button class="btn-ghost" id="backupBtn" title="download all players, ratings, results & fields to a file">⬇ Backup</button>
         <button class="btn-ghost" id="restoreBtn" title="restore from a backup file">⬆ Restore</button>
         <input type="file" id="restoreInput" accept="application/json,.json" style="display:none">
@@ -507,12 +511,13 @@ async function applySharedRatings(){
     if(map && typeof map==='object'){
       players.forEach(p=>{
         const r = map[p.name.trim().toLowerCase()];
-        const unrated = p.skill===3 && p.speed===3 && p.endurance===3 && p.age===3 && p.position==='MID' && !p.captain;
-        if(r && unrated){                       // only fill players that are still at defaults
-          p.skill=+r.skill||3; p.speed=+r.speed||3; p.endurance=+r.endurance||3; p.age=+r.age||3;
-          if(POSITIONS.includes(r.position)) p.position=r.position;
-          p.captain=!!r.captain;
-          changed=true;
+        if(!r) return;                          // no shared rating for this player -> keep local
+        const ns=+r.skill||3, np=+r.speed||3, ne=+r.endurance||3, na=+r.age||3;
+        const npos = POSITIONS.includes(r.position)?r.position:p.position;
+        const ncap = !!r.captain;
+        if(p.skill!==ns||p.speed!==np||p.endurance!==ne||p.age!==na||p.position!==npos||p.captain!==ncap){
+          p.skill=ns; p.speed=np; p.endurance=ne; p.age=na; p.position=npos; p.captain=ncap;
+          changed=true;                         // shared is the latest edit from any admin -> apply it
         }
       });
     }
@@ -542,6 +547,13 @@ async function pullSharedConfig(){
           changed=true;
         }
       });
+      // remove players deleted on RSVP (only when the shared roster is a real, id-bearing list)
+      const sharedIds = new Set(sr.filter(r=>r && r.id).map(r=>r.id));
+      if(sharedIds.size){
+        const before = players.length;
+        players = players.filter(p=>sharedIds.has(p.id));
+        if(players.length !== before) changed = true;
+      }
     }
   }catch(e){}
   if(changed){ save(players); }
@@ -1170,7 +1182,7 @@ function teamCard(cls,label,arr,tot,avg){
 function addPlayer(name){
   name=name.trim(); if(!name) return;
   players.push({ id:uid(), name, skill:3, speed:3, endurance:3, age:3, position:'MID', present:true, captain:isDefaultCaptain(name) });
-  save(players); renderRoster();
+  save(players); renderRoster(); publishField();
 }
 function loadRegulars(){
   const have = new Set(players.map(p=>p.name.trim().toLowerCase()));
@@ -1528,6 +1540,20 @@ function restoreData(file){
   };
   r.readAsText(file);
 }
+async function refreshFromServer(){
+  const btn=document.getElementById('refreshServerBtn'); const o='⟳ Refresh';
+  btn.disabled=true; btn.textContent='Refreshing…';
+  try{
+    const fdata = await loadFields();
+    fields = fdata.fields || [];
+    if(!fields.find(f=>f.id===selectedFieldId)) selectedFieldId = fdata.selectedFieldId || (fields[0] && fields[0].id) || null;
+    await pullSharedConfig();      // players added / renamed / deleted by other admins
+    await applySharedRatings();    // latest ratings from any admin
+    renderRoster(); renderFieldSelect(); renderMatchVenue();
+  }catch(e){}
+  btn.disabled=false; flashBtn(btn, '✓ Updated', o);
+}
+$('refreshServerBtn').onclick = refreshFromServer;
 $('backupBtn').onclick = backupData;
 $('restoreBtn').onclick = ()=> $('restoreInput').click();
 $('restoreInput').onchange = e=>{ const f=e.target.files[0]; if(f) restoreData(f); e.target.value=''; };
