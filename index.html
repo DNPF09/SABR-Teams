@@ -292,7 +292,7 @@
       <h1>SIDES<span class="dot">.</span></h1>
       <p>Even teams · every time</p>
     </div>
-    <div class="stamp">Pick-up<b>Wed 6PM · Sat 8AM</b>SABR<span class="stamp-loc" id="brandLoc"></span></div>
+    <div class="stamp">Pick-up<b>Wed 7:30PM · Sat 8AM</b>SABR<span class="stamp-loc" id="brandLoc"></span></div>
   </header>
 
   <div class="switch" id="switch">
@@ -385,7 +385,7 @@ function rsvpSessionKey(){
   const cands = [];
   for(let add=-4; add<=9; add++){
     const d = new Date(now); d.setDate(d.getDate()+add);
-    if(d.getDay()===3){ const k=new Date(d); k.setHours(18,0,0,0); const c=new Date(d); c.setHours(23,0,0,0); cands.push({k, c, day:'W'}); }
+    if(d.getDay()===3){ const k=new Date(d); k.setHours(19,30,0,0); const c=new Date(d); c.setHours(23,0,0,0); cands.push({k, c, day:'W'}); }
     if(d.getDay()===6){ const k=new Date(d); k.setHours(8,0,0,0);  const c=new Date(d); c.setDate(c.getDate()+2); c.setHours(23,0,0,0); cands.push({k, c, day:'S'}); }
   }
   const fut = cands.filter(s=>s.c.getTime() > now.getTime()).sort((a,b)=>a.c-b.c);
@@ -1392,7 +1392,7 @@ function renderFieldSelect(){
 
 /* ---------- game day/time (next SABR session) ---------- */
 // SABR plays Wednesday 6:00 PM and Saturday 8:00 AM
-const SESSIONS = [{dow:3,h:18,m:0},{dow:6,h:8,m:0}];
+const SESSIONS = [{dow:3,h:19,m:30},{dow:6,h:8,m:0}];
 function nextSession(from){
   let best = null;
   for(let add=0; add<=7; add++){

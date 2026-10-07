@@ -131,7 +131,7 @@
       <h1>SABR<span class="dot">.</span> RSVP</h1>
       <p>Tap your name if you're playing</p>
     </div>
-    <div class="stamp">Pick-up<b>Wed 6PM · Sat 8AM</b></div>
+    <div class="stamp">Pick-up<b>Wed 7:30PM · Sat 8AM</b></div>
   </header>
 
   <div id="adminBar" class="adminbar"></div>
@@ -191,7 +191,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 const esc = s => s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- schedule (America/New_York) ----------
-   RSVP opens Tue 8:00 AM ET for the Wed 6 PM game,
+   RSVP opens Tue 8:00 AM ET for the Wed 7:30 PM game,
    and Thu 8:00 AM ET for the Sat 8 AM game. */
 function etNow(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})); }
 function shift(base, days, hour){ const d=new Date(base); d.setDate(d.getDate()+days); d.setHours(hour,0,0,0); return d; }
@@ -200,8 +200,8 @@ function currentSession(now){
   const cands = [];
   for(let add=-4; add<=9; add++){
     const d = new Date(now); d.setDate(d.getDate()+add);
-    if(d.getDay()===3){                              // Wednesday 6 PM game — list clears Wed 11 PM
-      const k=new Date(d); k.setHours(18,0,0,0);
+    if(d.getDay()===3){                              // Wednesday 7:30 PM game — list clears Wed 11 PM
+      const k=new Date(d); k.setHours(19,30,0,0);
       const clear=new Date(d); clear.setHours(23,0,0,0);
       cands.push({kick:k, open:shift(k,-1,8), clear, day:'Wednesday'});
     }
@@ -373,11 +373,9 @@ async function saveDayLock(){
 // only trust the shared roster when its version matches — otherwise show the new built-in names.
 async function loadRoster(){
   if(SHARED){
-    const ver = await loadConfig('__ROSTERVER__');
-    if(ver === ROSTER_VERSION){
-      const r = await loadConfig('__ROSTER__');
-      if(Array.isArray(r) && r.length) return r.map(x=>({ id:x.id||null, name:x.name }));
-    }
+    // use the shared roster whenever SIDES has published real ids, so edits sync back by id
+    const r = await loadConfig('__ROSTER__');
+    if(Array.isArray(r) && r.length && r.some(x=>x && x.id)) return r.map(x=>({ id:x.id||null, name:x.name }));
   }
   return ROSTER.map(n=>({ id:null, name:n }));
 }
@@ -514,33 +512,7 @@ function renderBody(){
     $('apSave').onclick=save;
     $('apName').onkeydown=e=>{ if(e.key==='Enter') save(); };
   };
-  if(!SESSION.isOpen){
-    if(ADMIN){
-      // roster name editor is available to admin even when sign-up is closed
-      const list=[...PLAYERS].sort((a,b)=>a.name.localeCompare(b.name));
-      const f=FILTER.trim().toLowerCase();
-      const shown=f?list.filter(p=>p.name.toLowerCase().includes(f)):list;
-      body.innerHTML=`
-        <div class="hint">Admin — edit player names below (syncs to the app). Sign-up opens ${fmt(SESSION.open,false)}.</div>
-        ${addPlayerHtml()}
-        <input class="search" id="search" type="text" placeholder="Search name…" autocomplete="off" value="${esc(FILTER)}">
-        <div class="list">
-          ${shown.map(p=>{
-            if(EDIT_ID && p.id===EDIT_ID){
-              return `<div class="row editing" data-id="${esc(p.id)}"><input class="edit-in" id="editIn" type="text" maxlength="40" value="${esc(p.name)}"><button class="edit-save" data-save="${esc(p.id)}">✓</button></div>`;
-            }
-            return `<div class="row"><span class="nm">${esc(p.name)}${COUNTS[p.name.trim().toLowerCase()]?`<span class="cnt" title="sign-ups this season">×${COUNTS[p.name.trim().toLowerCase()]}</span>`:''}</span>${p.id?`<button class="edit-btn" data-edit="${esc(p.id)}" data-name="${esc(p.name)}" title="edit name">✎</button>`:''}</div>`;
-          }).join('')}
-        </div>`;
-      $('refreshBtn').style.display=SHARED?'block':'none';
-      wireAddPlayer();
-      const s=$('search'); if(s){ s.oninput=()=>{ FILTER=s.value; const pos=s.selectionStart; renderBody(); const ns=$('search'); ns.focus(); ns.setSelectionRange(pos,pos); }; }
-      const ei=$('editIn'); if(ei){ ei.focus(); ei.select();
-        ei.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); commitEdit(EDIT_ID, ei.value); } else if(e.key==='Escape'){ EDIT_ID=null; render(); } }; }
-      return;
-    }
-    body.innerHTML=''; $('refreshBtn').style.display='none'; return;
-  }
+  if(!SESSION.isOpen && !ADMIN){ body.innerHTML=''; $('refreshBtn').style.display='none'; return; }
   const st = computeStatus();
   const gk = n => GKS.has(n.trim().toLowerCase());
   const ORD = {}; INORDER.forEach((n,i)=>{ ORD[n.trim().toLowerCase()] = i+1; });
@@ -556,7 +528,7 @@ function renderBody(){
   const shown=f?list.filter(p=>p.name.toLowerCase().includes(f)):list;
   const meNote = (!ADMIN && ME) ? `<div class="menote">You're in as <b>${esc(ME)}</b> — tap your name to remove.</div>` : '';
   const hint = ADMIN
-    ? `Admin — tap any name to add or remove. First ${st.cap2} in start${GKS.size?' · keepers always start':''}.`
+    ? `Admin — tap any name to add or remove.${SESSION.isOpen?'':' (Sign-up is closed for players until '+fmt(SESSION.open,false)+'.)'} First ${st.cap2} in start${GKS.size?' · keepers always start':''}.`
     : `Tap your name to sign in — one pick per phone. First ${st.cap2} in start${GKS.size?' · keepers always start':''}.`;
   body.innerHTML=`
     <div class="count"><b>${INORDER.length}</b><span>in · ${st.starting.length} starting · ${st.subs.length} sub${st.subs.length===1?'':'s'}</span></div>
@@ -607,6 +579,7 @@ function renderPast(){
 function render(){ renderAdmin(); if(SHOWPAST && ADMIN){ renderPast(); return; } renderStatus(); renderFieldLock(); renderVenue(); renderBody(); }
 
 async function refresh(){
+  try{ ADMIN = localStorage.getItem('sabr:admin')==='1'; }catch(e){ ADMIN=false; }
   SESSION = currentSession(etNow());
   KEY = sessionKey(SESSION);
   SESSION_FIELD = await loadField(KEY);
@@ -615,13 +588,12 @@ async function refresh(){
   PLAYERS   = await loadRoster();
   GKS = await loadGKs(KEY);
   COUNTS = await loadCounts();
-  const list = SESSION.isOpen ? await loadIns(KEY) : [];
+  const list = (SESSION.isOpen || ADMIN) ? await loadIns(KEY) : [];   // admin sees/manages sign-ins anytime
   INORDER = list.map(x=>x.name);
   INSET = new Set(INORDER);
   TIMES = {}; list.forEach(x=>{ TIMES[x.name]=x.ts; });
   ME = loadMe();
   if(ME && !INSET.has(ME)){ ME=null; saveMe(null); }   // your pick was cleared elsewhere
-  try{ ADMIN = localStorage.getItem('sabr:admin')==='1'; }catch(e){ ADMIN=false; }
   render();
 }
 
@@ -649,7 +621,7 @@ $('body').addEventListener('click', async e=>{
   const sv=e.target.closest('.edit-save'); if(sv){ const ei=$('editIn'); commitEdit(sv.dataset.save, ei?ei.value:''); return; }
   if(e.target.closest('.editing')) return;
   if(EDIT_ID){ EDIT_ID=null; render(); return; }   // tapped elsewhere -> cancel edit
-  const row=e.target.closest('.row'); if(!row || !SESSION.isOpen) return;
+  const row=e.target.closest('.row'); if(!row || (!SESSION.isOpen && !ADMIN)) return;
   const name=row.dataset.name; if(!name) return;
 
   if(ADMIN){                            // admin can toggle anyone, add as many as needed
