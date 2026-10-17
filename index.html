@@ -26,6 +26,7 @@
     --speed:#3FC6C0;
     --age:#B98CE0;
     --endurance:#E8843C;
+    --comm:#4FD1C5;
     --ok:#57C08A;
     --def:#5FA8E0;
     --mid:#57C08A;
@@ -152,6 +153,7 @@
   .rate.speed .dot.on{background:var(--speed);border-color:var(--speed);}
   .rate.age .dot.on{background:var(--age);border-color:var(--age);}
   .rate.endurance .dot.on{background:var(--endurance);border-color:var(--endurance);}
+  .rate.comm .dot.on{background:var(--comm);border-color:var(--comm);}
   /* ratings explainer popup */
   #tip{position:fixed;z-index:200;max-width:250px;background:#0e1a18;border:1px solid var(--muted-2);
     color:var(--chalk);font-size:12px;line-height:1.5;padding:11px 13px;border-radius:11px;
@@ -365,6 +367,7 @@
         <button class="btn btn-ghost" id="prevBtn" disabled title="Go back to a previous balanced lineup">↩ Previous</button>
         <button class="btn btn-ghost" id="saveLineupBtn" disabled title="Save this lineup so you can return to it later">💾 Save</button>
       </div>
+      <div id="matchExtra"></div>
     </section>
   </div>
 </div>
@@ -487,15 +490,23 @@ async function publishField(){
   // shared roster (id+name) so name edits on RSVP can sync back by id
   rows.push({ session:'__config__', name:'__ROSTER__', status: JSON.stringify(players.map(p=>({id:p.id, name:p.name}))) });
   rows.push({ session:'__config__', name:'__ROSTERVER__', status: JSON.stringify(ROSTER_VERSION) });
-  // player ratings, keyed by name so they survive resets, re-uploads and new devices
-  const ratings = {};
-  players.forEach(p=>{ ratings[p.name.trim().toLowerCase()] =
-    { skill:p.skill, speed:p.speed, endurance:p.endurance, age:p.age, position:p.position, captain:!!p.captain }; });
-  rows.push({ session:'__config__', name:'__RATINGS__', status: JSON.stringify(ratings) });
   try{
     await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
       headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
       body: JSON.stringify(rows)});
+  }catch(e){}
+}
+// Ratings are published ONLY when actually edited (never on plain page loads),
+// so a load can never overwrite everyone's saved ratings with defaults.
+async function publishRatings(){
+  if(!SB_ON) return;
+  const ratings = {};
+  players.forEach(p=>{ ratings[p.name.trim().toLowerCase()] =
+    { skill:p.skill, speed:p.speed, endurance:p.endurance, communicator:p.communicator, age:p.age, position:p.position, captain:!!p.captain }; });
+  try{
+    await fetch(`${SB_URL}/rest/v1/rsvp`, {method:'POST',
+      headers: sbHeaders({'Content-Type':'application/json', Prefer:'resolution=merge-duplicates'}),
+      body: JSON.stringify({ session:'__config__', name:'__RATINGS__', status: JSON.stringify(ratings) })});
   }catch(e){}
 }
 
@@ -513,10 +524,11 @@ async function applySharedRatings(){
         const r = map[p.name.trim().toLowerCase()];
         if(!r) return;                          // no shared rating for this player -> keep local
         const ns=+r.skill||3, np=+r.speed||3, ne=+r.endurance||3, na=+r.age||3;
+        const ncm=(typeof r.communicator==='number')?r.communicator:3;
         const npos = POSITIONS.includes(r.position)?r.position:p.position;
         const ncap = !!r.captain;
-        if(p.skill!==ns||p.speed!==np||p.endurance!==ne||p.age!==na||p.position!==npos||p.captain!==ncap){
-          p.skill=ns; p.speed=np; p.endurance=ne; p.age=na; p.position=npos; p.captain=ncap;
+        if(p.skill!==ns||p.speed!==np||p.endurance!==ne||p.communicator!==ncm||p.age!==na||p.position!==npos||p.captain!==ncap){
+          p.skill=ns; p.speed=np; p.endurance=ne; p.communicator=ncm; p.age=na; p.position=npos; p.captain=ncap;
           changed=true;                         // shared is the latest edit from any admin -> apply it
         }
       });
@@ -542,7 +554,7 @@ async function pullSharedConfig(){
         const p = byId.get(r.id);
         if(p){ if(p.name!==r.name){ p.name=r.name; changed=true; } }        // renamed on RSVP
         else {                                                              // new player added on RSVP
-          players.push({ id:r.id, name:r.name, skill:3, speed:3, endurance:3, age:3,
+          players.push({ id:r.id, name:r.name, skill:3, speed:3, endurance:3, communicator:3, age:3,
             position:'MID', present:false, sub:false, captain:isDefaultCaptain(r.name) });
           changed=true;
         }
@@ -705,6 +717,24 @@ const DEFAULT_SIZE = f => (f && typeof f.size==='number') ? f.size : (/el\s*rio/
 function refreshCap(){ const f = (typeof selectedField==='function') ? selectedField() : null; CAP = f ? DEFAULT_SIZE(f) : 12; }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const DEFAULT_CAPTAINS = ['carlos olivera','armando rivera'];
+// players who must be on the same team as a partner (key follows value)
+const STICK = { 'mario selman':'carlos olivera' };
+const isStuck = p => !!STICK[(p.name||'').trim().toLowerCase()];
+// keep stuck players on their partner's team
+function enforceStick(A,B){
+  const all = A.concat(B);
+  for(const s of all.filter(isStuck)){
+    const tgt = STICK[s.name.trim().toLowerCase()];
+    const sTeam = A.includes(s) ? A : B;
+    const tTeam = A.some(p=>p.name.trim().toLowerCase()===tgt) ? A
+                : B.some(p=>p.name.trim().toLowerCase()===tgt) ? B : null;
+    if(!tTeam || sTeam===tTeam) continue;
+    sTeam.splice(sTeam.indexOf(s),1);
+    const cand = tTeam.find(p=>p.position!=='GK' && !p.captain && !isStuck(p) && p.name.trim().toLowerCase()!==tgt);
+    if(cand){ tTeam.splice(tTeam.indexOf(cand),1); sTeam.push(cand); }
+    tTeam.push(s);
+  }
+}
 const ROSTER_VERSION = '2026-registration';
 const isDefaultCaptain = name => DEFAULT_CAPTAINS.includes((name||'').trim().toLowerCase());
 
@@ -798,9 +828,13 @@ const total  = arr => arr.reduce((t,p)=>t+rating(p),0);
 const ageTotal = arr => arr.reduce((t,p)=>t+ageOf(p),0);
 const formOf = p => { const r=records[p.id]; return r ? r.form : 0; };   // margin-weighted recent form
 const formTotal = arr => arr.reduce((t,p)=>t+formOf(p),0);
-// combined imbalance: strength weighted heaviest, then age spread, then recent form
+const commOf = p => (typeof p.communicator==='number' ? p.communicator : 3);   // on-field communication, 1..5
+const hiComm = arr => arr.filter(p=>commOf(p)>=4).length;                       // strong communicators (4-5)
+const commSplit = (A,B) => Math.min(hiComm(A), hiComm(B));                      // strong communicators kept apart
+// combined imbalance: strength heaviest, then keep strong communicators together, then age, form
 function balanceCost(A,B){
   return Math.abs(total(A)-total(B))*10
+       + commSplit(A,B)*6
        + Math.abs(ageTotal(A)-ageTotal(B))*3
        + Math.abs(formTotal(A)-formTotal(B))*2;
 }
@@ -822,9 +856,9 @@ function optimizeOutfield(A,B){
     improved = false;
     let cost = balanceCost(A,B);
     for(let i=0;i<A.length;i++){
-      if(A[i].position==='GK' || A[i].captain) continue;
+      if(A[i].position==='GK' || A[i].captain || isStuck(A[i])) continue;
       for(let j=0;j<B.length;j++){
-        if(B[j].position==='GK' || B[j].captain) continue;
+        if(B[j].position==='GK' || B[j].captain || isStuck(B[j])) continue;
         [A[i],B[j]] = [B[j],A[i]];            // try the swap
         const nc = balanceCost(A,B);
         if(nc < cost){ cost = nc; improved = true; }
@@ -836,9 +870,12 @@ function optimizeOutfield(A,B){
 
 function buildTeams(present){
   if(present.length < 2) return null;
+  const nm = p => (p.name||'').trim().toLowerCase();
   const captains = present.filter(p=>p.captain);
-  const gks = present.filter(p=>p.position==='GK' && !p.captain).sort((a,b)=>rating(b)-rating(a));
-  const out = present.filter(p=>p.position!=='GK' && !p.captain);
+  const stuck = present.filter(p=>isStuck(p) && present.some(q=>nm(q)===STICK[nm(p)]));  // partner also here
+  const stuckSet = new Set(stuck.map(p=>p.id));
+  const gks = present.filter(p=>p.position==='GK' && !p.captain && !stuckSet.has(p.id)).sort((a,b)=>rating(b)-rating(a));
+  const out = present.filter(p=>p.position!=='GK' && !p.captain && !stuckSet.has(p.id));
   let best = null;
 
   for(let r=0;r<500;r++){
@@ -851,6 +888,14 @@ function buildTeams(present){
       else if(A.length < CAP) A.push(c);
       else if(B.length < CAP) B.push(c);
       else subs.push(c);
+    });
+    // stuck players join their partner's team
+    stuck.forEach(s=>{
+      const tgt = STICK[nm(s)];
+      let t = A.some(p=>nm(p)===tgt) ? A : B.some(p=>nm(p)===tgt) ? B : (A.length<=B.length?A:B);
+      if(t.length < CAP) t.push(s);
+      else if((t===A?B:A).length < CAP) (t===A?B:A).push(s);
+      else subs.push(s);
     });
     const flip = Math.random() < 0.5;
     gks.forEach((g,i)=>{
@@ -870,11 +915,12 @@ function buildTeams(present){
       else (total(A) <= total(B) ? A : B).push(p);               // even count -> weaker side
     }
     optimizeOutfield(A,B);
+    enforceStick(A,B);
 
     if(Math.abs(A.length-B.length) > 1) continue;
     const diff = Math.abs(total(A)-total(B));
     const ageDiff = Math.abs(ageTotal(A)-ageTotal(B));
-    const score = diff*100 + ageDiff*20 + posImbalance(A,B);   // strength first, then age, positions as tiebreak
+    const score = diff*100 + commSplit(A,B)*40 + ageDiff*20 + posImbalance(A,B);   // strength, then strong communicators together, then age
     if(!best || score < best.score || (score === best.score && Math.random() < 0.35)){
       best = { A:[...A], B:[...B], subs:[...subs], diff, ageDiff, score };
     }
@@ -936,6 +982,7 @@ function renderRoster(){
         <div class="rate skill"><span class="lbl" data-tip="skill">Skill</span><div class="dots">${dotsHtml('skill',p.skill)}</div></div>
         <div class="rate speed"><span class="lbl" data-tip="speed">Speed</span><div class="dots">${dotsHtml('speed',p.speed)}</div></div>
         <div class="rate endurance"><span class="lbl" data-tip="endurance">Endur.</span><div class="dots">${dotsHtml('endurance',endOf(p))}</div></div>
+        <div class="rate comm"><span class="lbl" data-tip="comm">Comm.</span><div class="dots">${dotsHtml('comm',commOf(p))}</div></div>
         <div class="rate age"><span class="lbl" data-tip="age">Age</span><div class="dots">${dotsHtml('age',ageOf(p),AGE_BANDS)}</div></div>
       </div>
     </div>`;}).join('');
@@ -1018,8 +1065,9 @@ function suggestFormation(arr){
 
 function renderMatch(){
   const body = $('matchBody');
+  const extra = $('matchExtra');
   updateMatchWhen();
-  if(!teams){ body.innerHTML = `<div class="match-empty">Mark who's here, then balance the sides.</div>`; return; }
+  if(!teams){ body.innerHTML = `<div class="match-empty">Mark who's here, then balance the sides.</div>`; if(extra) extra.innerHTML=''; return; }
 
   const sA=total(teams.A), sB=total(teams.B), tot=(sA+sB)||1, diff=Math.abs(sA-sB);
   const lead = sA===sB ? '' : (sA>sB ? 'Red' : 'White');
@@ -1050,8 +1098,8 @@ function renderMatch(){
       <div class="subs-list">
         ${teams.subs.map(p=>`<button class="sub-chip" data-sub="${p.id}" title="tap to swap into a team"><span class="ptag ${p.position}">${p.position}</span>${escapeHtml(p.name)}</button>`).join('')}
       </div>
-    </div>` : ''}
-    ${resultLogHtml()}`;
+    </div>` : ''}`;
+  if(extra) extra.innerHTML = resultLogHtml();
 }
 
 function formatResultDate(ts){
@@ -1181,14 +1229,14 @@ function teamCard(cls,label,arr,tot,avg){
 /* ---------------- actions ---------------- */
 function addPlayer(name){
   name=name.trim(); if(!name) return;
-  players.push({ id:uid(), name, skill:3, speed:3, endurance:3, age:3, position:'MID', present:true, captain:isDefaultCaptain(name) });
+  players.push({ id:uid(), name, skill:3, speed:3, endurance:3, communicator:3, age:3, position:'MID', present:true, captain:isDefaultCaptain(name) });
   save(players); renderRoster(); publishField();
 }
 function loadRegulars(){
   const have = new Set(players.map(p=>p.name.trim().toLowerCase()));
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase()))
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, communicator:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
   });
   save(players); renderRoster();
 }
@@ -1209,8 +1257,8 @@ function startEditName(card, p){
   const commit = ()=>{
     if(done) return; done = true;
     const v = input.value.trim();
-    if(v) p.name = v;
-    save(players); renderRoster();
+    if(v && v!==p.name){ p.name = v; save(players); renderRoster(); publishField(); publishRatings(); }
+    else { renderRoster(); }
   };
   input.addEventListener('keydown', e=>{
     if(e.key==='Enter'){ e.preventDefault(); commit(); }
@@ -1224,7 +1272,7 @@ function loadAll(){
   const have = new Set(players.map(p=>p.name.trim().toLowerCase()));
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase()))
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, communicator:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
   });
   players.forEach(p=>p.present=true);
   save(players); renderRoster();
@@ -1295,7 +1343,7 @@ function moveAcross(id){
     }
   }
   to.push(p);
-  commitCurrent(); renderMatch(); updateMatchState();
+  enforceStick(teams.A, teams.B); commitCurrent(); renderMatch(); updateMatchState();
 }
 
 // teams a player may join without putting two captains together
@@ -1325,7 +1373,7 @@ function subIn(id){                          // rotate a sub onto the field
     teams.subs.splice(si,1);
     teams.subs.push(weak);
   }
-  commitCurrent(); renderMatch(); updateMatchState();
+  enforceStick(teams.A, teams.B); commitCurrent(); renderMatch(); updateMatchState();
 }
 
 /* Live-apply a roster Sub toggle to the teams already on screen, keeping them balanced.
@@ -1376,7 +1424,7 @@ function applySub(p){
       optimizeOutfield(teams.A, teams.B);
     }
   }
-  commitCurrent();
+  enforceStick(teams.A, teams.B); commitCurrent();
 }
 $('addBtn').onclick = ()=>{ addPlayer($('nameInput').value); $('nameInput').value=''; $('nameInput').focus(); };
 
@@ -1524,7 +1572,7 @@ function restoreData(file){
       if(Array.isArray(d.players)){
         players = d.players.map(p=>({
           id: p.id || uid(), name: p.name || 'Player',
-          skill: +p.skill||3, speed:+p.speed||3, endurance:+p.endurance||3, age:+p.age||3,
+          skill: +p.skill||3, speed:+p.speed||3, endurance:+p.endurance||3, communicator:+p.communicator||3, age:+p.age||3,
           position: POSITIONS.includes(p.position)?p.position:'MID',
           present: !!p.present, sub: !!p.sub, captain: !!p.captain
         }));
@@ -1534,7 +1582,7 @@ function restoreData(file){
       if(Array.isArray(d.savedLineups)){ savedLineups = d.savedLineups; saveSavedLineups(); }
       if(Array.isArray(d.fields)){ fields = d.fields; selectedFieldId = d.selectedFieldId || (fields[0]&&fields[0].id) || null; saveFields(); }
       teams = null;
-      renderRoster(); renderFieldSelect(); renderMatchVenue(); renderMatch(); updateMatchState(); publishField();
+      renderRoster(); renderFieldSelect(); renderMatchVenue(); renderMatch(); updateMatchState(); publishField(); publishRatings();
       flashBtn($('restoreBtn'), '✓ Restored', '⬆ Restore');
     }catch(e){ flashBtn($('restoreBtn'), '✗ Bad file', '⬆ Restore'); }
   };
@@ -1576,19 +1624,23 @@ $('rosterList').addEventListener('click', e=>{
   else if(act==='skill') p.skill=+ctrl.dataset.val;
   else if(act==='speed') p.speed=+ctrl.dataset.val;
   else if(act==='endurance') p.endurance=+ctrl.dataset.val;
+  else if(act==='comm') p.communicator=+ctrl.dataset.val;
   else if(act==='age') p.age=+ctrl.dataset.val;
   else return;
   save(players); renderRoster();
-  if(act!=='present' && act!=='subtog') publishField();   // save ratings/roster changes to the DB
+  if(act==='kill') publishField();                                         // roster changed
+  else if(act!=='present' && act!=='subtog') publishRatings();             // skill/speed/endurance/age/position/captain
 });
-$('matchBody').addEventListener('click', e=>{
+function matchClick(e){
   const res=e.target.closest('[data-result]'); if(res){ logResult(res.dataset.result); return; }
   const un=e.target.closest('[data-undo]'); if(un){ undoLastResult(); return; }
   const ld=e.target.closest('[data-load-lineup]'); if(ld){ loadSavedLineup(ld.dataset.loadLineup); return; }
   const dl=e.target.closest('[data-del-lineup]'); if(dl){ deleteSavedLineup(dl.dataset.delLineup); return; }
   const chip=e.target.closest('.sub-chip'); if(chip){ subIn(chip.dataset.sub); return; }
   const slot=e.target.closest('.slot'); if(slot) moveAcross(slot.dataset.id);
-});
+}
+$('matchBody').addEventListener('click', matchClick);
+$('matchExtra').addEventListener('click', matchClick);
 
 function setView(target){
   document.querySelectorAll('.switch button').forEach(b=>b.classList.toggle('on', b.dataset.target===target));
@@ -1601,6 +1653,7 @@ const TIPS = {
   skill: ['Skill','How good on the ball — touch, passing, finishing & game sense.\n1 dot = weakest · 5 dots = strongest.\nMore dots = better player.'],
   speed: ['Speed','Pace, acceleration & sprinting.\n1 dot = slowest · 5 dots = fastest.\nMore dots = better player.'],
   endurance: ['Endurance','Stamina — how long they keep running at full effort.\n1 dot = tires early · 5 dots = lasts the whole game.\nMore dots = better player.'],
+  comm:  ['Communicator','Talks, organizes & directs on the field.\n1 dot = quiet · 5 dots = loud leader.\nStrong communicators (4-5) are grouped on the same team.'],
   age:   ['Age','Age band, used to split ages evenly across both teams (not skill). Neither end is better or worse.\n1 = 35–44 · 2 = 45–54 · 3 = 55–64 · 4 = 65–74 · 5 = 75–80.']
 };
 const tip = document.createElement('div');
@@ -1646,7 +1699,7 @@ window.addEventListener('scroll', hideTip, true);
   // load exactly the registered players (fresh, default ratings)
   let rv=null; try{ rv=localStorage.getItem('sides:rosterVersion'); }catch(e){}
   if(rv !== ROSTER_VERSION){
-    players = REGULARS.map(n=>({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3,
+    players = REGULARS.map(n=>({ id:uid(), name:n, skill:3, speed:3, endurance:3, communicator:3, age:3,
       position:'MID', present:false, sub:false, captain:isDefaultCaptain(n) }));
     save(players);
     try{ localStorage.setItem('sides:rosterVersion', ROSTER_VERSION); }catch(e){}
@@ -1666,6 +1719,7 @@ window.addEventListener('scroll', hideTip, true);
     else if(p.skill > 5) p.skill = Math.max(1, Math.min(5, Math.round(p.skill/2)));
     if(typeof p.age !== 'number') p.age = 3;
     if(typeof p.endurance !== 'number') p.endurance = 3;
+    if(typeof p.communicator !== 'number') p.communicator = 3;
     if(!POSITIONS.includes(p.position)) p.position = p.gk ? 'GK' : 'MID';
     if(typeof p.present !== 'boolean') p.present = false;
     if(typeof p.sub !== 'boolean') p.sub = false;
@@ -1677,7 +1731,7 @@ window.addEventListener('scroll', hideTip, true);
   let added = false;
   REGULARS.forEach(n=>{
     if(!have.has(n.trim().toLowerCase())){
-      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
+      players.push({ id:uid(), name:n, skill:3, speed:3, endurance:3, communicator:3, age:3, position:'MID', present:false, captain:isDefaultCaptain(n) });
       added = true;
     }
   });
